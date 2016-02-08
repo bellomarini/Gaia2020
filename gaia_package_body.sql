@@ -7,7 +7,7 @@
 
   CREATE OR REPLACE PACKAGE BODY "GAIA"."GAIA" AS
 
-PROCEDURE ENCODERELATION (v_relationName IN VARCHAR2, v_target_e_schema in varchar2  ) AS 
+PROCEDURE ENCODE_RELATION (v_relationName IN VARCHAR2, v_target_e_schema in varchar2  ) AS 
 
 cursor cur_table is
     select cols.column_name, k2.constraint_type, k3.table_name AS "TO_TABLE", k3.column_name as "TO_COLUMN"
@@ -114,9 +114,9 @@ BEGIN
     
     commit;
     
-END ENCODERELATION;
+END ENCODE_RELATION;
 
-PROCEDURE GETCANONICALTEMPLATEMAPPING 
+PROCEDURE GET_CANONICAL_TEMPLATE_MAPPING 
 (
   v_e_schema1 IN VARCHAR2  
 , v_e_schema2 IN VARCHAR2  
@@ -201,9 +201,9 @@ BEGIN
 
 
 
-END GETCANONICALTEMPLATEMAPPING;
+END GET_CANONICAL_TEMPLATE_MAPPING;
 
-procedure PARSEMAPPING(v_mapping_string in varchar2) as
+procedure PARSE_MAPPING(v_mapping_string in varchar2, v_mapping_id out varchar2) as
 
 atom_name varchar2(20) := 'dummy';
 param_list varchar2(20) := 'dummy';
@@ -211,32 +211,156 @@ var varchar2(20) := 'dummy';
 pos integer := 1;
 var_pos integer := 1;
 
+first_rhs varchar2(20); -- the first atom in the RHS
+lhs varchar(3) := 'LHS'; -- if considering the LHS or the RHS
+
+var_id varchar2(20) := null;
+v_quantification varchar(1); -- U or E
+
+mapping_id integer;
+
 begin
+
+-- it detects the first atom in the RHS
+-- so as to understand when actually parsing RHS
+select regexp_substr(v_mapping_string,'\-\>\s*(\w+)',1,1,NULL,1) into first_rhs from dual;
+
+-- it stores the mapping
+insert into mappings(id, description, source_schema, target_schema) values (seq_mappings.nextval, v_mapping_string, null, null);
+
+-- stores the mapping id for later use
+select seq_mappings.currval into mapping_id from dual;
+
+dbms_output.put_line('Parsing LHS:');
 
 while atom_name is not null
 loop
 
     var_pos := 1;
-    select regexp_substr(v_mapping_string,'(\w+)\(',1,pos,NULL,1) 
+    var := 'dummy';
+    select regexp_substr(v_mapping_string,'(\w+)\s*\(',1,pos,NULL,1) 
     into atom_name from dual;
     exit when atom_name is null;
     
+    -- it detects if we have started to
+    -- parse the rhs
+    if atom_name = first_rhs then
+        dbms_output.put_line('Parsing RHS');
+        lhs := 'RHS';
+    end if;
+    
     dbms_output.put_line('Atom : ' || atom_name);
-    select regexp_substr(v_mapping_string,'\(((\w+,)+\w)\)',1,pos,NULL,1) into param_list from dual;
+    
+    -- it stores the current atom
+    insert into atoms (id, name, mapping, lhs_rhs) values (seq_atoms.nextval,atom_name,seq_mappings.currval,lhs);
+    
+    select regexp_substr(v_mapping_string,'\(((\w+\s*,\s*)+\s*\w+\s*)\)',1,pos,NULL,1) into param_list from dual;
+    
     dbms_output.put_line('  Parameters : ' || param_list);
+
     while var is not null
     loop
         select regexp_substr(param_list,'(\w+)',1,var_pos,NULL,1) into var from dual;
         exit when var is null;
-        dbms_output.put_line('      Variable: ' || var);
-        var_pos := var_pos + 1;
+        
+        -- to understand the quantification, it operates as follows.
+        -- It extracts the id of the variable, to understand if it
+        -- has already been added.
+        begin
+            select id into var_id
+            from variables where mapping = mapping_id and name = var;
+        exception
+            when no_data_found then
+                var_id := null;
+        end;
+        
+        -- Is we are in the RHS, and the variable appears for the first time
+        -- then it is existentially quantified
+        if lhs='RHS' and var_id is null then 
+            v_quantification := 'E';
+        -- else if in LHS or if the variable has already been used
+        -- then it is universally quantified
+        else  
+            v_quantification := 'U';
+        end if;
+        
+        dbms_output.put_line('      Variable: ('||v_quantification||') '|| var);
 
+        -- if the first time, generate an identifier and insert
+        if var_id is null then
+            insert into variables(name, mapping, quantification, id) values (var, seq_mappings.currval, v_quantification , seq_variables.nextval);
+            select seq_variables.currval into var_id from dual;
+        end if;
+        
+        -- it stores the current variable in the respective atom
+        insert into variables_atoms(variable, atom, position) values (var_id, seq_atoms.currval, var_pos);
+        
+        var_pos := var_pos + 1;
     end loop;
     pos := pos + 1;
 
 end loop;
 
-end PARSEMAPPING;
+v_mapping_id := mapping_id;
+
+end PARSE_MAPPING;
+
+function MAPPING_TO_STRING_BY_ID(v_mapping_id in varchar2) return varchar2 as
+
+-- cursor to rebuild the mapping string
+cursor cur_mapping is 
+select lhs_rhs, a.name as "ATOM", v.name as "VARIABLE"
+    from 
+        mappings m join atoms a on (a.mapping = m.id)
+        join variables_atoms va on (a.id = va.atom)
+        join variables v on (va.variable = v.id)
+    where m.id = v_mapping_id
+    order by lhs_rhs, a.id, va.position;
+    
+v_mapping_string varchar(200);
+v_lhs_rhs varchar2(20);
+v_atom_name varchar2(20);
+v_var_name varchar2(20);
+
+v_rhs_ok boolean := false;
+
+v_prev_atom_name varchar2(20) := null;
+
+begin
+
+open cur_mapping;
+
+loop
+    fetch cur_mapping into v_lhs_rhs, v_atom_name, v_var_name;
+    exit when cur_mapping%notfound;
+    
+    -- sets the '->' symbol
+    if not v_rhs_ok and v_lhs_rhs = 'RHS' then
+        v_mapping_string := v_mapping_string || ')->';
+        -- and starts from a new atom
+        v_prev_atom_name := null;
+        v_rhs_ok := true;
+    end if;
+    
+    -- if the first atom of LHS or RHS
+    if v_prev_atom_name is null then
+        v_mapping_string := v_mapping_string || v_atom_name || '(' || v_var_name;
+    -- if a new atom, close the previous and open a new one
+    elsif v_prev_atom_name != v_atom_name then
+        v_mapping_string := v_mapping_string || '),' || v_atom_name || '(' || v_var_name;
+    -- if the same atom, just another variable
+    else
+        v_mapping_string := v_mapping_string || ',' || v_var_name;
+    end if;
+    
+    v_prev_atom_name := v_atom_name;
+            
+end loop;
+    
+    v_mapping_string := v_mapping_string || ')';
+    return v_mapping_string;
+
+end MAPPING_TO_STRING_BY_ID;
 
 
 END GAIA;
