@@ -1,0 +1,23 @@
+--------------------------------------------------------
+--  File created - Monday-February-08-2016   
+--------------------------------------------------------
+--------------------------------------------------------
+--  DDL for Package GAIA
+--------------------------------------------------------
+
+  CREATE OR REPLACE PACKAGE "GAIA"."GAIA" AS 
+
+-- It parses a string representing a schema mapping (or a template mapping) of the form
+-- "R1(x,y,z),R2(z,k,w) -> R3(k,q,s)"
+-- and stores it into our metamodel MAPPINGS, VARIABLES, ATOMS.
+procedure PARSEMAPPING(v_mapping_string in varchar2);
+
+-- It encodes a relation in GAIA_INPUT given its name and the target e-scema
+procedure ENCODERELATION (v_relationName in varchar2, v_target_e_schema in varchar2);
+
+-- It returns the canonical template mapping for a given pair of e-schemas
+procedure GETCANONICALTEMPLATEMAPPING (v_e_schema1 in varchar2, v_e_schema2 in varchar2);
+
+END GAIA;
+
+/
