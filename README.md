@@ -10,7 +10,7 @@ The project includes libraries for:
   
 Organization of the repository:
   - root : contains the source code.
-    - <package>_package.sql is the spec of package <package>
-    - <package>.sql is the body of <package>
+    - \<package\>_package.sql is the spec of package <package>
+    - \<package\>.sql is the body of \<package\>
   - DDL : contains the DDL scripts to create the relations of Gaia metamodel and the sequences
   
