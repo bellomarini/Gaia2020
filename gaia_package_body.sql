@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Monday-February-08-2016   
+--  File created - Tuesday-February-09-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -254,7 +254,7 @@ loop
     -- it stores the current atom
     insert into atoms (id, name, mapping, lhs_rhs) values (seq_atoms.nextval,atom_name,seq_mappings.currval,lhs);
     
-    select regexp_substr(v_mapping_string,'\(((\w+\s*,\s*)+\s*\w+\s*)\)',1,pos,NULL,1) into param_list from dual;
+    select regexp_substr(v_mapping_string,'\(((\w+\s*,?\s*)+\s*\w*\s*)\)',1,pos,NULL,1) into param_list from dual;
     
     dbms_output.put_line('  Parameters : ' || param_list);
 
@@ -305,11 +305,11 @@ v_mapping_id := mapping_id;
 
 end PARSE_MAPPING;
 
-function MAPPING_TO_STRING_BY_ID(v_mapping_id in varchar2) return varchar2 as
+procedure MAPPING_TO_STRING_BY_ID(v_mapping_id in varchar2, v_mapping_string out varchar2) as
 
 -- cursor to rebuild the mapping string
 cursor cur_mapping is 
-select lhs_rhs, a.name as "ATOM", v.name as "VARIABLE"
+select lhs_rhs, a.name as "ATOM", a.id as "ATOM_ID", v.name as "VARIABLE"
     from 
         mappings m join atoms a on (a.mapping = m.id)
         join variables_atoms va on (a.id = va.atom)
@@ -317,50 +317,192 @@ select lhs_rhs, a.name as "ATOM", v.name as "VARIABLE"
     where m.id = v_mapping_id
     order by lhs_rhs, a.id, va.position;
     
-v_mapping_string varchar(200);
 v_lhs_rhs varchar2(20);
 v_atom_name varchar2(20);
+v_atom_id varchar2(20);
 v_var_name varchar2(20);
 
 v_rhs_ok boolean := false;
 
-v_prev_atom_name varchar2(20) := null;
+v_prev_atom_id varchar2(20) := null;
 
 begin
 
 open cur_mapping;
 
 loop
-    fetch cur_mapping into v_lhs_rhs, v_atom_name, v_var_name;
+    fetch cur_mapping into v_lhs_rhs, v_atom_name, v_atom_id, v_var_name;
     exit when cur_mapping%notfound;
     
     -- sets the '->' symbol
     if not v_rhs_ok and v_lhs_rhs = 'RHS' then
         v_mapping_string := v_mapping_string || ')->';
         -- and starts from a new atom
-        v_prev_atom_name := null;
+        v_prev_atom_id := null;
         v_rhs_ok := true;
     end if;
     
     -- if the first atom of LHS or RHS
-    if v_prev_atom_name is null then
+    if v_prev_atom_id is null then
         v_mapping_string := v_mapping_string || v_atom_name || '(' || v_var_name;
     -- if a new atom, close the previous and open a new one
-    elsif v_prev_atom_name != v_atom_name then
+    elsif v_prev_atom_id != v_atom_id then
         v_mapping_string := v_mapping_string || '),' || v_atom_name || '(' || v_var_name;
     -- if the same atom, just another variable
     else
         v_mapping_string := v_mapping_string || ',' || v_var_name;
     end if;
     
-    v_prev_atom_name := v_atom_name;
+    v_prev_atom_id := v_atom_id;
             
 end loop;
     
     v_mapping_string := v_mapping_string || ')';
-    return v_mapping_string;
 
 end MAPPING_TO_STRING_BY_ID;
+
+-- It verifies if a mapping appropriately applies
+-- to a source and a target schema
+function VERIFY_BINDING(v_mapping_id in varchar2, v_database_source_schema varchar2, v_database_target_schema varchar2) return boolean
+as
+v_atom_name varchar2(20);
+v_atom_id varchar2(20);
+v_lhs_rhs varchar2(3);
+v_vars_no integer;
+v_cols_no integer;
+
+    -- Query to verify if some relations in the LHS
+    -- are not present in the source schema (with the atom name and as many variables as the attributes)
+    -- and if some relations in the RHS are not present in the target schema (with the atom name and as
+    -- many variables as the attributes).
+    cursor verify_binding is
+    select a.id as ATOM_ID, a.name as ATOM_NAME, a.LHS_RHS as LHS_RHS, count(distinct va.variable) as VARS_NO, count(distinct tab_cols.column_name) as COLS_NO
+    from atoms a join variables_atoms va on (a.id = va.atom) join mappings m on (m.id = a.mapping)
+    left outer join    
+        (select col.table_name as table_name, col.column_name as column_name
+            from all_tab_columns col, atoms a join mappings m on (a.mapping = m.id)
+            where ((col.owner = v_database_source_schema and a.LHS_RHS = 'LHS') or (col.owner = v_database_target_schema and a.LHS_RHS = 'RHS'))
+            and m.id = v_mapping_id
+            and col.table_name = a.name) tab_cols
+        on(tab_cols.table_name = a.name)
+    where m.id = v_mapping_id
+    having count(distinct va.variable) <> count(distinct tab_cols.column_name)
+    group by a.id, a.name, a.LHS_RHS;
+
+begin
+
+    open verify_binding;
+    loop
+    fetch verify_binding into v_atom_id, v_atom_name, v_lhs_rhs, v_vars_no, v_cols_no;
+    
+    exit when verify_binding%notfound;
+        if v_vars_no <> v_cols_no and v_cols_no>0 then
+                dbms_output.put_line('Atom ' || v_atom_name || ' (' || v_lhs_rhs || ') has ' || v_vars_no || ' variables, while the corresponding relation has ' || v_cols_no || ' attributes');
+        elsif v_cols_no = 0 then
+                dbms_output.put_line('Atom ' || v_atom_name || ' (' || v_lhs_rhs || ') has no corresponding relation');
+        end if;
+        return false;
+    end loop;
+    close verify_binding;
+
+    dbms_output.put_line('Mapping consistent with database schemas');
+    return true;
+END VERIFY_BINDING;
+
+
+
+procedure GENERATE_ESCHEMAS(v_mapping_id in varchar2, v_database_source_schema varchar2, v_database_target_schema varchar2, v_eschema1 out integer, v_eschema2 out integer) as
+
+check_ok boolean := true;
+v_source_eschema_id varchar2(20);
+v_target_eschema_id varchar2(20);
+begin    
+    -- We verify if the mapping correctly binds to the schemas
+    check_ok := VERIFY_BINDING(v_mapping_id, v_database_source_schema, v_database_target_schema);
+    -- Then, we encode the mapping
+
+    -- ids for the new eschemas
+    select seq_eschemas.nextval into v_source_eschema_id from dual;
+    v_eschema1 := v_source_eschema_id;
+    select seq_eschemas.nextval into v_target_eschema_id from dual;
+    v_eschema2 := v_target_eschema_id;
+
+    -- for each ATOM a --> RELATION r
+    --  for each VARIABLE v in a --> ATTRIBUTE att in r named after the variable (for the non keys)
+    --  for each VARIABLE v in a --> KEY key in r named after the variable (for the keys)
+    --  for any two ATOMS a1 a2 linked by a FK in the database schema f --> FK
+    
+    -- the relations
+    insert into relations(id, name, eschema)
+    select case LHS_RHS when 'LHS' then skolem.relations_from_atoms_sk(a.id,v_source_eschema_id)
+                        when 'RHS' then skolem.relations_from_atoms_sk(a.id,v_target_eschema_id) end,
+           name, 
+           case LHS_RHS when 'LHS' then v_source_eschema_id
+                        when 'RHS' then v_target_eschema_id end
+    from atoms a
+    where mapping = v_mapping_id;
+    
+    -- for each variable of each atom 
+    -- create an attribute and connect it to
+    -- the right relation using the Skolem function
+    -- if it is not a key attribute
+    insert into attributes(id, name, relation)
+    select case LHS_RHS when 'LHS' then skolem.attributes_from_variables_sk(v.id, v_source_eschema_id)
+                        when 'RHS' then skolem.attributes_from_variables_sk(v.id, v_target_eschema_id) end, 
+           v.name, 
+           case LHS_RHS when 'LHS' then skolem.relations_from_atoms_sk(a.id, v_source_eschema_id)
+                        when 'RHS' then skolem.relations_from_atoms_sk(a.id, v_target_eschema_id) end
+    from variables v join variables_atoms va on (v.id = va.variable)
+        join atoms a on (va.atom = a.id)
+    where
+    a.mapping = v_mapping_id
+    and not exists (
+        select *
+        from all_cons_columns cons
+        where
+            cons.column_name = (case LHS_RHS when 'LHS' then CATALOG_UTILS.get_column_name_in_position(v_database_source_schema, a.name, va.position)
+                                             when 'RHS' then CATALOG_UTILS.get_column_name_in_position(v_database_target_schema, a.name, va.position) end)
+            and cons.constraint_name like '%PK'
+    );
+    
+    -- for each variable of each atom 
+    -- create an attribute and connect it to
+    -- the right relation using the Skolem function
+    -- if it is a key attribute
+    insert into keys(id, name, relation)
+    select case LHS_RHS when 'LHS' then skolem.keys_from_variables_sk(v.id, v_source_eschema_id)
+                        when 'RHS' then skolem.keys_from_variables_sk(v.id, v_target_eschema_id) end,
+            v.name, 
+            case LHS_RHS when 'LHS' then skolem.relations_from_atoms_sk(a.id, v_source_eschema_id)
+                         when 'RHS' then skolem.relations_from_atoms_sk(a.id, v_target_eschema_id) end
+    from variables v join variables_atoms va on (v.id = va.variable)
+        join atoms a on (va.atom = a.id)
+    where
+    a.mapping = v_mapping_id
+    and exists (
+        select *
+        from all_cons_columns cons
+        where
+            cons.column_name = (case LHS_RHS when 'LHS' then CATALOG_UTILS.get_column_name_in_position(v_database_source_schema, a.name, va.position)
+                                             when 'RHS' then CATALOG_UTILS.get_column_name_in_position(v_database_target_schema, a.name, va.position) end)
+            and cons.constraint_name like '%PK'
+    );
+    
+    -- for each variable of each atom
+    -- create a key and connect it to
+    -- the right relation using the Skolem function
+    -- if it is a key
+    
+
+    -- for each FK in the database schema, connecting two
+    -- relations both referred to by two atoms of the mapping
+    -- create a FK between the respective attributes
+  
+
+
+
+end GENERATE_ESCHEMAS;
+
 
 
 END GAIA;

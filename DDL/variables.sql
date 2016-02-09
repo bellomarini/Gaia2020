@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Monday-February-08-2016   
+--  File created - Tuesday-February-09-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Table VARIABLES
@@ -55,4 +55,4 @@
 --------------------------------------------------------
 
   ALTER TABLE "GAIA"."VARIABLES" ADD CONSTRAINT "VARIABLE_MAPPING_FK1" FOREIGN KEY ("MAPPING")
-	  REFERENCES "GAIA"."MAPPINGS" ("ID") ENABLE;
+	  REFERENCES "GAIA"."MAPPINGS" ("ID") ON DELETE CASCADE ENABLE;
