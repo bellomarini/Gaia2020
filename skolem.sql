@@ -79,6 +79,120 @@ function keys_from_variables_sk(v_atom_name varchar2, v_variable_position varcha
         return v_id_out;
     
     end keys_from_variables_sk;
+    
+    function atoms_from_relations_sk(v_relation_id varchar2, v_mapping varchar2) return varchar2 as
+    v_id_out varchar2(20);
+    begin
+    
+    begin
+    -- if the function has already been calculated then return that value
+        select out into v_id_out
+        from atoms_sk
+        where function = 'atoms_from_relations_sk'
+        and relation_id = v_relation_id
+        and mapping = v_mapping;
+        -- if this is the first time, then calculate the value from the sequence
+        -- and insert it for later use
+        exception
+            when no_data_found then
+                select seq_atoms.nextval into v_id_out from dual;
+                insert into atoms_sk(out, function, relation_id, mapping) 
+                values (v_id_out,'atoms_from_relations_sk',v_relation_id, v_mapping);
+        end;
+        return v_id_out;
+    end atoms_from_relations_sk;
+    
+    function atoms_from_attributes_sk(v_attribute_id varchar2, v_mapping varchar2) return varchar2 as
+    v_id_out varchar2(20);
+    begin
+    
+    begin
+    -- if the function has already been calculated then return that value
+        select out into v_id_out
+        from atoms_sk
+        where function = 'atoms_from_attributes_sk'
+        and attribute_id = v_attribute_id
+        and mapping = v_mapping;
+        -- if this is the first time, then calculate the value from the sequence
+        -- and insert it for later use
+        exception
+            when no_data_found then
+                select seq_atoms.nextval into v_id_out from dual;
+                insert into atoms_sk(out, function, attribute_id, mapping) 
+                values (v_id_out,'atoms_from_attributes_sk',v_attribute_id, v_mapping);
+        end;
+        return v_id_out;
+    
+    end atoms_from_attributes_sk;
+    
+    function atoms_from_keys_sk(v_key_id varchar2, v_mapping varchar2) return varchar2 as 
+    v_id_out varchar2(20);
+    begin
+    
+    begin
+    -- if the function has already been calculated then return that value
+        select out into v_id_out
+        from atoms_sk
+        where function = 'atoms_from_keys_sk'
+        and key_id = v_key_id
+        and mapping = v_mapping;
+        -- if this is the first time, then calculate the value from the sequence
+        -- and insert it for later use
+        exception
+            when no_data_found then
+                select seq_atoms.nextval into v_id_out from dual;
+                insert into atoms_sk(out, function, key_id, mapping) 
+                values (v_id_out,'atoms_from_keys_sk',v_key_id, v_mapping);
+        end;
+        return v_id_out;
+    
+    end atoms_from_keys_sk;
+    
+    function atoms_from_fkeys_sk(v_fkey_id varchar2, v_mapping varchar2) return varchar2 as
+        v_id_out varchar2(20);
+    begin
+    
+    begin
+    -- if the function has already been calculated then return that value
+        select out into v_id_out
+        from atoms_sk
+        where function = 'atoms_from_fkeys_sk'
+        and fkey_id = v_fkey_id
+        and mapping = v_mapping;
+        -- if this is the first time, then calculate the value from the sequence
+        -- and insert it for later use
+        exception
+            when no_data_found then
+                select seq_atoms.nextval into v_id_out from dual;
+                insert into atoms_sk(out, function, fkey_id, mapping) 
+                values (v_id_out,'atoms_from_fkeys_sk',v_fkey_id, v_mapping);
+        end;
+        return v_id_out;
+    
+    end atoms_from_fkeys_sk;
+    
+    function variables_from_literals_sk(v_literal varchar2, v_mapping varchar2) return varchar2 as
+    v_id_out varchar2(20);
+    begin
+    
+    begin
+    -- if the function has already been calculated then return that value
+        select out into v_id_out
+        from variables_sk
+        where function = 'variables_from_literals_sk'
+        and literal = v_literal
+        and mapping = v_mapping;
+        -- if this is the first time, then calculate the value from the sequence
+        -- and insert it for later use
+        exception
+            when no_data_found then
+                select seq_variables.nextval into v_id_out from dual;
+                insert into variables_sk(out, function, literal, mapping) 
+                values (v_id_out,'variables_from_literals_sk',v_literal, v_mapping);
+        end;
+        return v_id_out;    
+    
+    end variables_from_literals_sk;
 
 END SKOLEM;
 
