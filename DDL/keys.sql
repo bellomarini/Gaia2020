@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Tuesday-February-09-2016   
+--  File created - Wednesday-February-10-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Table KEYS
@@ -8,7 +8,8 @@
   CREATE TABLE "GAIA"."KEYS" 
    (	"ID" VARCHAR2(20 BYTE), 
 	"NAME" VARCHAR2(20 BYTE), 
-	"RELATION" VARCHAR2(20 BYTE)
+	"RELATION" VARCHAR2(20 BYTE), 
+	"POSITION" NUMBER
    ) SEGMENT CREATION IMMEDIATE 
   PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 NOCOMPRESS LOGGING
   STORAGE(INITIAL 65536 NEXT 1048576 MINEXTENTS 1 MAXEXTENTS 2147483645

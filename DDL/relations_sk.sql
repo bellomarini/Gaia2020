@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Tuesday-February-09-2016   
+--  File created - Wednesday-February-10-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Table RELATIONS_SK
@@ -8,8 +8,8 @@
   CREATE TABLE "GAIA"."RELATIONS_SK" 
    (	"OUT" VARCHAR2(20 BYTE), 
 	"FUNCTION" VARCHAR2(100 BYTE), 
-	"ATOM_ID" VARCHAR2(20 BYTE), 
-	"ESCHEMA" VARCHAR2(20 BYTE)
+	"ESCHEMA" VARCHAR2(20 BYTE), 
+	"ATOM_NAME" VARCHAR2(20 BYTE)
    ) SEGMENT CREATION IMMEDIATE 
   PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 NOCOMPRESS LOGGING
   STORAGE(INITIAL 65536 NEXT 1048576 MINEXTENTS 1 MAXEXTENTS 2147483645

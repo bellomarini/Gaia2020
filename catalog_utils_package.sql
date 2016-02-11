@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Tuesday-February-09-2016   
+--  File created - Wednesday-February-10-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package CATALOG_UTILS
@@ -15,6 +15,8 @@ function GET_COLUMN_ID_IN_POSITION(v_database_schema varchar2, v_table_name varc
 -- given its position in Oracle catalog
 function GET_COLUMN_NAME_IN_POSITION(v_database_schema varchar2, v_table_name varchar2, v_position integer) return varchar2;
 
+-- It returns the position of a given coulmn in a table, given it name.
+function GET_COLUMN_POSITION_BY_NAME(v_database_schema varchar2, v_table_name varchar2, v_column_name varchar2) return integer;
 
 END CATALOG_UTILS;
 
