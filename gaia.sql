@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Thursday-February-11-2016   
+--  File created - Saturday-February-13-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -14,20 +14,26 @@ PROCEDURE GET_CANONICAL_TEMPLATE_MAPPING
 ) AS 
 
     v_mapping_id varchar2(20);
+    v_mapping_string varchar2(200);
     
 BEGIN
     
     select seq_mappings.nextval into v_mapping_id from dual;
     
     -- It creates and inserts the new mapping.
-    -- TODO: The description is updated later on, when known.
-    -- TODO: now we add one single mapping, the it'll change when
-    -- we also have to deal with the rewriting.
+    
+    -- Now we add one single mapping. Multiple mappings will be generated
+    -- to handle rewritings.
+    
     insert into mappings(id, description, source_schema, target_schema)
     values (v_mapping_id, null, null, null);
     
+    -----------
+    -- ATOMS --
+    -----------
     -- We create the atoms, one for each relation, in the RHS and in the LHS
         insert into atoms(id, name, mapping, LHS_RHS)
+        -- from RELATIONS
         select skolem.atoms_from_relations_sk(rel.id, v_mapping_id), 
             'RELATION', 
             v_mapping_id, 
@@ -35,7 +41,7 @@ BEGIN
         from relations rel
         where 
         (eschema = v_e_schema1 or eschema = v_e_schema2)
-    -- and for each attribute
+    -- from ATTRIBUTES
     union
         select skolem.atoms_from_attributes_sk(att.id, v_mapping_id),
             'ATTRIBUTE',
@@ -53,7 +59,7 @@ BEGIN
         from keys k join relations rel on (k.relation = rel.id)
         where
         (eschema = v_e_schema1 or eschema = v_e_schema2)
-    -- and for each fkey
+    -- from FKEYS
     union
         select skolem.atoms_from_fkeys_sk(fk.id, v_mapping_id),
             'FKEY',
@@ -64,67 +70,175 @@ BEGIN
         (eschema = v_e_schema1 or eschema = v_e_schema2);
         
 
-    
+    ---------------
+    -- VARIABLES --
+    ---------------
 
-
-   -- TODO : the quantification of variables is not set here, but updated at the end
-   -- We create the variables
+   -- The quantification of variables is set to 'U' and then updated to 'E' when needed
    
-   -- VARIABLES FROM THE RELATIONS --
-   
-   -- one for each atom for each relation
-    insert into variables(id, name, mapping, quantification)
-           select skolem.variables_from_literals_sk(rel.name, v_mapping_id) as id,
+        insert into variables(id, name, mapping, quantification)
+        -- FROM RELATIONS.NAME : one name variable for each relation fact
+        select skolem.variables_from_literals_sk(rel.name, v_mapping_id) as id,
            'var' || skolem.variables_from_literals_sk(rel.name, v_mapping_id) as name,
            v_mapping_id as mapping,
-           null as quantification
+           'U' as quantification
            from relations rel
            where 
-            (eschema = v_e_schema1 or eschema = v_e_schema2);
-            
-    -- and connect it to the appropriate atoms
-    insert into variables_atoms(variable, atom, position) 
-        select 
-            skolem.variables_from_literals_sk(rel.name, v_mapping_id) as variable,
-            skolem.atoms_from_relations_sk(rel.id, v_mapping_id) as atom,
-            '1' as position
-        from relations rel
-        where 
-            (eschema = v_e_schema1 or eschema = v_e_schema2);
-    
-    -- END VARIABLES FROM THE RELATIONS --
-    
-        -- one name variable for each attribute fact
-        insert into variables(id, name, mapping, quantification)
+            (eschema = v_e_schema1 or eschema = v_e_schema2)        
+        union
+        -- ATTRIBUTES.NAME: one name variable for each attribute fact
            select skolem.variables_from_literals_sk(att.name, v_mapping_id) as id,
            'var' || skolem.variables_from_literals_sk(att.name, v_mapping_id) as name,
            v_mapping_id as mapping,
-           null as quantification
+           'U' as quantification
            from attributes att join relations rel on (att.relation = rel.id)
            where 
-            (eschema = v_e_schema1 or eschema = v_e_schema2);
-            
-        -- and connect it
-    
-    -- VARIABLES from the ATTRIBUTES --
-    
-    
-    -- END of VARIABLES from the ATTRIBUTES --
-            
-    -- and the variables for the attributes
-    /*
-        select skolem.variables_from_literals_sk(att.name, v_mapping_id) as id,
-        'var' || skolem.variables_from_literals_sk(att.name,v_mapping_id) as name,
-        v_mapping_id as mapping,
-        null as quantification
-        from attributes att join relations rel on (att.relation = rel.id)
-        where 
-            (eschema = v_e_schema1 or eschema = v_e_schema2);
-            */
-    
+            (eschema = v_e_schema1 or eschema = v_e_schema2)
+        -- ATTRIBUTES.RELATION: one relation variable for each attribute fact
+        union
+            select skolem.variables_from_literals_sk(rel.name, v_mapping_id) as id,
+            'var' || skolem.variables_from_literals_sk(rel.name, v_mapping_id) as name,
+            v_mapping_id as mapping,
+            'U' as quantification
+                       from attributes att join relations rel on (att.relation = rel.id)
+           where 
+            (eschema = v_e_schema1 or eschema = v_e_schema2)
+        -- KEYS.NAME: one name variable for each key fact
+        union
+            select skolem.variables_from_literals_sk(k.name, v_mapping_id) as id,
+            'var' || skolem.variables_from_literals_sk(k.name, v_mapping_id) as name,
+            v_mapping_id as mapping,
+            'U' as quantification
+            from keys k join relations rel on (k.relation = rel.id)
+            where 
+            (eschema = v_e_schema1 or eschema = v_e_schema2)
+        -- KEYS.RELATION: one relation variable for each key fact
+        union
+             select skolem.variables_from_literals_sk(rel.name, v_mapping_id) as id,
+            'var' || skolem.variables_from_literals_sk(rel.name, v_mapping_id) as name,
+            v_mapping_id as mapping,
+            'U' as quantification
+                       from keys k join relations rel on (k.relation = rel.id)
+           where 
+            (eschema = v_e_schema1 or eschema = v_e_schema2)
+        -- FKEYS.FROM_COLUMN: one from_column variable for each fkey fact
+        union
+            select skolem.variables_from_literals_sk(att.name, v_mapping_id) as id,
+            'var' || skolem.variables_from_literals_sk(att.name, v_mapping_id) as name,
+            v_mapping_id as mapping,
+            'U' as quantification
+            from fkeys fk join attributes att on (fk.from_column = att.id)
+                join relations rel on (att.relation = rel.id)
+                           where (eschema = v_e_schema1 or eschema = v_e_schema2)
+        -- FKEYS.TO_RELATION: one to_relation variable for each fkey fact
+        union
+            select skolem.variables_from_literals_sk(to_rel.name, v_mapping_id) as id,
+            'var' || skolem.variables_from_literals_sk(to_rel.name, v_mapping_id) as name,
+            v_mapping_id as mapping,
+            'U' as quantification
+            from fkeys fk join attributes att on (fk.from_column = att.id)
+                join relations rel on (att.relation = rel.id) join relations to_rel on (fk.to_relation = to_rel.id)
+                           where (rel.eschema = v_e_schema1 or rel.eschema = v_e_schema2);
+        
 
+    -- and connect the various variables to the respective atoms
+    -- select all the variables that have been added to this mapping
     
+    ------------------
+    -- VARIABLES_ATOMS
+    ------------------
 
+    insert into variables_atoms(variable, atom, position) 
+        -- FROM RELATIONS.NAME : one name variable for each relation fact
+        select 
+            skolem.variables_from_literals_sk(rel.name, v_mapping_id) as variable,
+            skolem.atoms_from_relations_sk(rel.id, v_mapping_id) as atom,
+           '1' as position
+           from relations rel
+           where 
+            (eschema = v_e_schema1 or eschema = v_e_schema2)
+        union
+        -- ATTRIBUTES.NAME: one name variable for each attribute fact
+            select           
+            skolem.variables_from_literals_sk(att.name, v_mapping_id) as variable,
+            skolem.atoms_from_attributes_sk(att.id, v_mapping_id) as atom,
+           '1' as position
+           from attributes att join relations rel on (att.relation = rel.id)
+           where 
+            (eschema = v_e_schema1 or eschema = v_e_schema2)
+        -- ATTRIBUTES.RELATION: one relation variable for each attribute fact
+        union
+            select           
+            skolem.variables_from_literals_sk(rel.name, v_mapping_id) as variable,
+            skolem.atoms_from_attributes_sk(att.id, v_mapping_id) as atom,
+           '2' as position
+           from attributes att join relations rel on (att.relation = rel.id)
+           where 
+            (eschema = v_e_schema1 or eschema = v_e_schema2)
+        -- KEYS.NAME: one name variable for each key fact
+        union
+            select           
+            skolem.variables_from_literals_sk(k.name, v_mapping_id) as variable,
+            skolem.atoms_from_keys_sk(k.id, v_mapping_id) as atom,
+           '1' as position
+            from keys k join relations rel on (k.relation = rel.id)
+            where 
+            (eschema = v_e_schema1 or eschema = v_e_schema2)
+        union
+        -- KEYS.RELATION: one relation variable for each key fact
+            select           
+            skolem.variables_from_literals_sk(rel.name, v_mapping_id) as variable,
+            skolem.atoms_from_keys_sk(k.id, v_mapping_id) as atom,
+           '2' as position
+                       from keys k join relations rel on (k.relation = rel.id)
+           where 
+            (eschema = v_e_schema1 or eschema = v_e_schema2)
+        -- FKEYS.FROM_COLUMN: one from_column variable for each fkey fact
+        union
+            select           
+            skolem.variables_from_literals_sk(att.name, v_mapping_id) as variable,
+            skolem.atoms_from_fkeys_sk(fk.id, v_mapping_id) as atom,
+           '1' as position
+            from fkeys fk join attributes att on (fk.from_column = att.id)
+                join relations rel on (att.relation = rel.id)
+                           where (eschema = v_e_schema1 or eschema = v_e_schema2)
+        -- FKEYS.TO_RELATION: one to_relation variable for each fkey fact
+        union
+           select           
+            skolem.variables_from_literals_sk(to_rel.name, v_mapping_id) as variable,
+            skolem.atoms_from_fkeys_sk(fk.id, v_mapping_id) as atom,
+           '2' as position
+            from fkeys fk join attributes att on (fk.from_column = att.id)
+                join relations rel on (att.relation = rel.id) join relations to_rel on (fk.to_relation = to_rel.id)
+                           where (rel.eschema = v_e_schema1 or rel.eschema = v_e_schema2);
+      
+            
+        -- We update the quantification
+            update variables
+            set quantification = 'E'
+            where id in (
+                select v.id 
+                from variables v join variables_atoms va on (v.id = va.variable)
+                                  join atoms a on (a.id = va.atom)
+                where LHS_RHS = 'RHS'
+                and v.mapping = v_mapping_id
+                and not exists (
+                select * from 
+                    variables v1 join variables_atoms va1 on (v1.id = va1.variable)
+                        join atoms a1 on (a1.id = va1.atom)
+                    where a1.LHS_RHS = 'LHS'
+                    and v1.id = v.id
+                )
+            );
+        
+        -- We update the textual description of the template mapping
+        
+        GAIA.MAPPING_TO_STRING_BY_ID(v_mapping_id, v_mapping_string);
+        update mappings
+        set description = v_mapping_string
+        where id = v_mapping_id;
+        
+        dbms_output.put_line('Generated template mapping: ' || v_mapping_id);
 
 END GET_CANONICAL_TEMPLATE_MAPPING;
 
@@ -395,8 +509,7 @@ begin
     insert into attributes(id, name, relation, position)
     select case LHS_RHS when 'LHS' then skolem.attributes_from_variables_sk(a.name,va.position, v_source_eschema_id)
                         when 'RHS' then skolem.attributes_from_variables_sk(a.name,va.position, v_target_eschema_id) end, 
-           case LHS_RHS when 'LHS' then catalog_utils.get_column_name_in_position(v_database_source_schema, a.name, va.position) 
-                        when 'RHS' then catalog_utils.get_column_name_in_position(v_database_target_schema, a.name, va.position) end,
+                        v.name as name,
            case LHS_RHS when 'LHS' then skolem.relations_from_atoms_sk(a.name, v_source_eschema_id)
                         when 'RHS' then skolem.relations_from_atoms_sk(a.name, v_target_eschema_id) end,
            va.position
@@ -420,9 +533,8 @@ begin
     insert into keys(id, name, relation, position)
     select case LHS_RHS when 'LHS' then skolem.keys_from_variables_sk(a.name, va.position,v_source_eschema_id)
                         when 'RHS' then skolem.keys_from_variables_sk(a.name, va.position, v_target_eschema_id) end,
-            case LHS_RHS when 'LHS' then catalog_utils.get_column_name_in_position(v_database_source_schema, a.name, va.position) 
-                        when 'RHS' then catalog_utils.get_column_name_in_position(v_database_target_schema, a.name, va.position) end,
-            case LHS_RHS when 'LHS' then skolem.relations_from_atoms_sk(a.name, v_source_eschema_id)
+                        v.name as name,
+                        case LHS_RHS when 'LHS' then skolem.relations_from_atoms_sk(a.name, v_source_eschema_id)
                          when 'RHS' then skolem.relations_from_atoms_sk(a.name, v_target_eschema_id) end,
             va.position
     from variables v join variables_atoms va on (v.id = va.variable)
