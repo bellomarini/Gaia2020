@@ -24,9 +24,8 @@ BEGIN
     
     -- Now we add one single mapping. Multiple mappings will be generated
     -- to handle rewritings.
-    
-    insert into mappings(id, description, source_schema, target_schema, is_template)
-    values (v_mapping_id, null, null, null, 'Y');
+    insert into mappings(id, description, source_schema, target_schema, type)
+    values (v_mapping_id, null, v_e_schema1, v_e_schema2, 'C');
     
     -----------
     -- ATOMS --
@@ -239,8 +238,190 @@ BEGIN
         where id = v_mapping_id;
         
         dbms_output.put_line('Generated template mapping: ' || v_mapping_id);
-
+        
 END GET_CANONICAL_TEMPLATE_MAPPING;
+
+procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_set_id out varchar2) as
+
+    v_var_id varchar2(20);
+    v_atom_id varchar2(20);
+    v_atom_name varchar2(20);
+    
+    v_source_eschema varchar2(20);
+    v_target_eschema varchar2(20);
+
+    -- find the ambiguous variables that are used in RHS such that
+    -- there are other ambiguous variables of the same LHS
+    -- atom that are not used in the RHS
+    -- or are used differently, that is:
+    -- a. used  in non-homonym atoms
+    -- b. used  in homonym atoms but in different positions
+    -- c. used  in homonym atoms, in the same position, but those atoms have some non-common variables
+cursor cur_ambiguous_variables is
+    select av.variable, a.id as atom_id, a.name as atom_name 
+    from ambiguous_variables av -- ambiguous variables that are used also in RHS
+        join variables_atoms va on (va.variable = av.variable) 
+        join atoms a on (va.atom = a.id and a.LHS_RHS='RHS')
+    
+    where (exists ( -- with some other variables of the same atom not used in RHS
+        select * 
+        from ambiguous_variables av1
+        where av.atom_name = av1.atom_name
+        and av.variable <> av1.variable
+        and not exists ( -- not used in the RHS
+            select *
+            from variables_atoms va1 join atoms a1 on (va1.atom = a1.id)
+            where va1.variable = av1.variable
+            and a1.LHS_RHS='RHS'
+        )
+        )
+        or exists ( -- or there is some ambiguous variable of the same LHS atom used
+                    -- in a different atom at RHS, or at a different position
+                    select * 
+            from ambiguous_variables av1 join variables_atoms va1 on (av1.variable = va1.variable)
+            where av.atom_name = av1.atom_name
+            and av.variable <> av1.variable
+            and exists (
+                select *
+                from variables_atoms va2 join atoms a2 on (va2.atom = a2.id)
+                where va2.variable = av1.variable
+                and a2.LHS_RHS='RHS'
+                and (a2.name <> av1.atom_name or va2.position <> va1.position)
+            
+            )      
+            ) -- or there is some ambiguous variable of the same LHS atom used
+              -- in a homonym attribute, at the right position in the RHS, but the two
+              -- atoms have some non-common variables
+        or exists (
+        select * 
+            from ambiguous_variables av1 join variables_atoms va1 on (av1.variable = va1.variable)
+            where av.atom_name = av1.atom_name
+            and av.variable <> av1.variable
+            and exists (
+                select *
+                from variables_atoms va2 join atoms a2 on (va2.atom = a2.id)
+                where va2.variable = av1.variable
+                and a2.LHS_RHS='RHS'
+                and a2.name = av1.atom_name 
+                and va2.position = va1.position
+                and exists (
+                    select *
+                    from variables_atoms va3 join atoms a3 on (a3.id = va3.atom)
+                    where a3.name = a2.name
+                    and a3.LHS_RHS='RHS'
+                    and va3.variable <> va2.variable
+                )
+            )      
+        )    
+    );
+
+begin
+
+    -- if in the LHS there are two atoms A(x,y,...), A(z,k,...) with the same name
+    -- and with variables in common only with the same atoms (i.e. the same join conditions) or with no common variables    
+    -- and some of their variables also appear in the RHS
+    
+    -- find the ambiguous variables, that is,
+    -- all the non-common variables
+    -- of homonym atoms that are linked (joined) exactly to the same set
+    -- of atoms by common variables
+    -- in the LHS
+    insert into ambiguous_variables (VARIABLE, ATOM, ATOM_NAME)
+    select distinct v.id as VARIABLE, a1.id as ATOM, a1.name as ATOM_NAME
+    from 
+         atoms a1 
+            join atoms a2 on (a1.name = a2.name and a1.id<>a2.id and a1.mapping = a2.mapping)
+            join variables_atoms va on (va.atom = a1.id)
+            join variables v on (v.id = va.variable)
+    where 
+        a1.mapping=v_mapping_id
+        and a1.LHS_RHS='LHS'
+        and a1.LHS_RHS = a2.LHS_RHS
+    -- and then exclude those connected to different atoms
+    -- by different variables
+        and not exists (
+            select *
+            from variables_atoms va1,  variables_atoms va2,
+                 variables_atoms va11, variables_atoms va22,
+                 atoms a11, atoms a22
+            where 
+                va1.atom = a1.id
+            and va2.atom = a2.id
+            and va1.variable <> va2.variable
+            and va11.variable = va1.variable
+            and va11.position = va1.position
+            and va22.variable = va2.variable
+            and va22.position = va22.position
+            and va11.atom <> va22.atom
+            and va11.atom <> va1.atom
+            and va22.atom <> va2.atom
+            and va11.atom <> va2.atom
+            and va22.atom <> va1.atom
+            and a11.id = va11.atom
+            and a22.id = va22.atom
+            and a11.LHS_RHS = a22.LHS_RHS
+            and a11.LHS_RHS = a1.LHS_RHS
+        ) and not exists ( -- for the non-common variables
+            select *
+            from variables_atoms va222
+            where va222.atom = a2.id
+            and va222.variable = va.variable
+            and va222.position = va.position
+        );
+        
+    
+    open cur_ambiguous_variables;
+
+    -- fetch source and target eschemas
+    select source_schema, target_schema into v_source_eschema, v_target_eschema
+    from mappings
+    where id = v_mapping_id;
+
+
+    loop
+    fetch cur_ambiguous_variables into v_var_id, v_atom_id, v_atom_name;
+    exit when cur_ambiguous_variables%notfound;
+    
+    
+        dbms_output.put_line('Variable to repair: ' || v_var_id || ' in atom ' || v_atom_name);
+        
+        declare
+            v_col_pos varchar2(20);
+        
+        begin
+        
+            -- fetches the position of the variable
+            select position into v_col_pos
+            from variables_atoms
+            where variable = v_var_id
+            and atom = v_atom_id;
+            
+            /*
+            if v_atom_name = 'RELATION' then
+                
+                select name
+                from relations
+                where eschema = v_target_eschema
+                
+            elsif v_atom_name = 'ATTRIBUTE' then
+            elsif v_atom_name = 'KEY' then
+            elsif v_atom_name = 'FKEY' then
+            end if;
+            
+            */
+        
+        end;
+        
+    
+    end loop;
+    
+    
+    close cur_ambiguous_variables;
+    
+    
+end GET_REPAIRED_TEMPLATE_MAPPINGS;
+
+
 
 procedure PARSE_MAPPING(v_mapping_string in varchar2, v_mapping_id out varchar2) as
 
@@ -267,7 +448,7 @@ begin
 select regexp_substr(v_mapping_string,'\-\>\s*(\w+)',1,1,NULL,1) into first_rhs from dual;
 
 -- it stores the mapping
-insert into mappings(id, description, source_schema, target_schema) values (seq_mappings.nextval, v_mapping_string, null, null);
+insert into mappings(id, description, source_schema, target_schema, type) values (seq_mappings.nextval, v_mapping_string, null, null,'S');
 
 -- stores the mapping id for later use
 select seq_mappings.currval into mapping_id from dual;
