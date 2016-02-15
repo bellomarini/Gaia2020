@@ -23,7 +23,7 @@ Organization of the repository:
   - DDL/ : contains the DDL scripts to create the relations of Gaia metamodel and the sequences
   - EXAMPLES/ : contains the examples
 
-Structure of a file <example>.sql
+Structure of a file \<example\>.sql
 ---------------------------------
 
 - DDL to create the source schema (to be run as admin)
