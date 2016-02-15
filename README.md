@@ -1,6 +1,8 @@
 Gaia 2020
+=========
 
 The project includes libraries for:
+-----------------------------------
 
   - GAIA.PARSE_MAPPING : parsing a schema mapping expressed as a string into GAIA metamodel
   - GAIA.MAPPING\_TO\_STRING\_BY\_ID: producing the string representation of a mapping stored in GAIA metamodel
@@ -13,6 +15,7 @@ The project includes libraries for:
   - given a template schema mapping, generate the corresponding schema mapping
   
 Organization of the repository:
+-------------------------------
 
   - / : contains the source code.
     - \<package\>_package.sql is the spec of package <package>
