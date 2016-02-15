@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Sunday-February-14-2016   
+--  File created - Monday-February-15-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -25,8 +25,8 @@ BEGIN
     -- Now we add one single mapping. Multiple mappings will be generated
     -- to handle rewritings.
     
-    insert into mappings(id, description, source_schema, target_schema)
-    values (v_mapping_id, null, null, null);
+    insert into mappings(id, description, source_schema, target_schema, is_template)
+    values (v_mapping_id, null, null, null, 'Y');
     
     -----------
     -- ATOMS --
@@ -247,6 +247,8 @@ procedure PARSE_MAPPING(v_mapping_string in varchar2, v_mapping_id out varchar2)
 atom_name varchar2(20) := 'dummy';
 param_list varchar2(20) := 'dummy';
 var varchar2(20) := 'dummy';
+v_condition varchar2(20) := 'dummy';
+v_cond_pos integer := 1;
 pos integer := 1;
 var_pos integer := 1;
 
@@ -340,6 +342,48 @@ loop
 
 end loop;
 
+-- to parse the conditions
+dbms_output.put_line('Conditions:');
+
+while v_condition is not null
+loop
+    select regexp_substr(v_mapping_string,',(\w+(=|<>)\"\w+\")',1,v_cond_pos,NULL,1) into v_condition from dual;
+    exit when v_condition is null;
+    
+    dbms_output.put_line('Condition: ' || v_condition);
+
+    declare
+        v_var varchar2(20);
+        v_var_id varchar2(20);
+        v_op varchar2(2);
+        v_val varchar2(20);
+        
+    begin
+        
+        select regexp_substr(v_condition,'(\w+)(=|<>)\"(\w+)\"',1,1,NULL,1) into v_var from dual;
+        select regexp_substr(v_condition,'(\w+)(=|<>)\"(\w+)\"',1,1,NULL,2) into v_op from dual;
+        select regexp_substr(v_condition,'(\w+)(=|<>)\"(\w+)\"',1,1,NULL,3) into v_val from dual;
+        
+        -- retrieves the id of the variable
+        -- for the current condition
+        select id into v_var_id
+        from variables
+        where name = v_var
+        and mapping = mapping_id;
+
+        insert into conditions(id, variable, value, cond_type)
+        values (seq_conditions.nextval, v_var_id, v_val, case when v_op = '=' then 'EQ' else 'NEQ' end);
+                
+    end;
+    
+    v_cond_pos := v_cond_pos + 1;
+        
+end loop;
+
+    
+
+
+
 v_mapping_id := mapping_id;
 
 dbms_output.put_line('Mapping generated: ' || v_mapping_id);
@@ -357,11 +401,21 @@ select lhs_rhs, a.name as "ATOM", a.id as "ATOM_ID", v.name as "VARIABLE"
         join variables v on (va.variable = v.id)
     where m.id = v_mapping_id
     order by lhs_rhs, a.id, va.position;
+
+cursor cur_conditions is
+select v.name, case when cond_type = 'EQ' then '=' else '<>' end, cond.value
+from conditions cond join variables v on (cond.variable = v.id)
+where v.mapping = v_mapping_id;
     
 v_lhs_rhs varchar2(20);
 v_atom_name varchar2(20);
 v_atom_id varchar2(20);
 v_var_name varchar2(20);
+
+v_cond_var varchar2(20);
+v_cond_op varchar2(2);
+v_cond_val varchar2(20);
+
 
 v_rhs_ok boolean := false;
 
@@ -377,7 +431,20 @@ loop
     
     -- sets the '->' symbol
     if not v_rhs_ok and v_lhs_rhs = 'RHS' then
-        v_mapping_string := v_mapping_string || ')->';
+        -- close the last atom
+        v_mapping_string := v_mapping_string || ')';
+        
+        -- parse the conditions
+        open cur_conditions;
+        loop
+        fetch cur_conditions into v_cond_var, v_cond_op, v_cond_val;
+        exit when cur_conditions%notfound;
+            v_mapping_string := v_mapping_string || ','||v_cond_var||v_cond_op||'"'||v_cond_val||'"';
+        end loop;
+        close cur_conditions;
+        
+        -- the arrow
+        v_mapping_string := v_mapping_string || '->';
         -- and starts from a new atom
         v_prev_atom_id := null;
         v_rhs_ok := true;
