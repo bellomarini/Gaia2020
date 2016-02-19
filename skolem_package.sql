@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Thursday-February-11-2016   
+--  File created - Friday-February-19-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package SKOLEM
@@ -40,9 +40,17 @@ function atoms_from_keys_sk(v_key_id varchar2, v_mapping varchar2) return varcha
 -- corresponding key indentifier
 function atoms_from_fkeys_sk(v_fkey_id varchar2, v_mapping varchar2) return varchar2;
 
+-- It takes as input the identifier of an atom and the target mapping and returns
+-- the identifier of a new atom.
+function atoms_from_atoms_sk(v_atom_id varchar2, v_mapping_id varchar2) return varchar2;
+
 -- It takes as input a literal value, from an example, and returns an id of
 -- a variable.
 function variables_from_literals_sk(v_literal varchar2, v_mapping varchar2) return varchar2;
+
+-- It takes as input a variable value and the target mapping and returns
+-- the identifier of a new variable.
+function variables_from_variables_sk(v_variable varchar2, v_mapping varchar2) return varchar2;
 
 END SKOLEM;
 

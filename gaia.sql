@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Monday-February-15-2016   
+--  File created - Friday-February-19-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -232,7 +232,7 @@ BEGIN
         
         -- We update the textual description of the template mapping
         
-        GAIA.MAPPING_TO_STRING_BY_ID(v_mapping_id, v_mapping_string);
+        MAPPINGS_UTILS.MAPPING_TO_STRING_BY_ID(v_mapping_id, v_mapping_string);
         update mappings
         set description = v_mapping_string
         where id = v_mapping_id;
@@ -240,6 +240,127 @@ BEGIN
         dbms_output.put_line('Generated template mapping: ' || v_mapping_id);
         
 END GET_CANONICAL_TEMPLATE_MAPPING;
+
+-- It takes as input the id of a template mapping, the specification of the fact it is LHS_RHS
+-- a populated POSSIBLE_VALUES table and populates relation HOMOMORPHISMS
+-- with all the possible homomorphism from the XHS to the values
+procedure ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id in varchar2, XHS in varchar2) as
+    path varchar2(200);
+    var varchar2(20);
+    val varchar2(20);
+    var_val varchar2(20);
+    var_pos integer := 0;
+    v_id_homo varchar2(20);
+    
+cursor cur_homo is
+   -- each row is a string "| var:val/var:val/var:val | .... "
+    select sys_connect_by_path(PATH,'|') as homo
+    from (
+    select PATH, ROOT
+    from (
+    select A.*, sys_connect_by_path(a.variable||':'||a.value,'/') as path, connect_by_isleaf as is_leaf, connect_by_root (variable) as root 
+    from (
+        select pv.*, va.variable, nullif(g_va.variable,va.variable) as GIVEN_VARIABLE
+        from possible_values pv, variables_atoms va, atoms a,
+                                 variables_atoms g_va, atoms g_a
+        where va.atom = a.id
+        and a.mapping = v_mapping_id
+        and a.name = pv.atom_name
+        and pv.position = va.position
+        and a.LHS_RHS = XHS
+        and g_va.atom = a.id
+        and g_va.atom = g_a.id
+        and g_a.mapping = v_mapping_id
+        and g_a.name = pv.atom_name
+        and (g_va.position = pv.given_pos or pv.given_pos is null)
+        and (g_a.LHS_RHS = XHS or pv.given_pos is null)
+    ) A
+        where connect_by_isleaf = 1
+        connect by nocycle (prior variable = given_variable and prior value = given_value)
+        start with (a.atom_name = 'RELATION')
+    ) )
+    where connect_by_isleaf = 1
+    connect by nocycle (prior root <> root);
+    -- Each tuple in the result set of the inner query 
+    -- is a coherent assignment of the variables of a set of atoms
+    -- with some variables in common. 
+    -- Tuples with the same ROOT represent alternative assignments for lists of related variables
+    -- Tuples with different ROOT represent assignments for non-related variables
+    -- Pick any set of tuples covering all the distinct ROOTS.
+    -- For each set of tuples produce one mapping by assigning the corresponding variables.
+
+begin
+    
+    delete from homomorphisms;
+    
+    open cur_homo;
+    loop
+    fetch cur_homo into path;
+    exit when cur_homo%notfound;
+        var_pos := 1;
+            select seq_homomorphisms.nextval into v_id_homo from dual;
+        loop
+            select regexp_substr(path,'\w+:\w+',1,var_pos) into var_val from dual;
+            exit when var_val is null;
+                select regexp_substr(var_val,'(\w+)\:(\w+)',1,1,null,1) into var from dual;
+                select regexp_substr(var_val,'(\w+)\:(\w+)',1,1,null,2) into val from dual;
+                insert into homomorphisms(id, variable, value) values (v_id_homo, var, val);
+            var_pos := var_pos + 1;
+        end loop;
+    
+    var_pos := var_pos + 1;
+    end loop;
+    
+    close cur_homo;
+
+end ALL_POSSIBLE_HOMOMORPHISMS;
+
+
+-- It populates the relation POSSIBLE_VALUES with all the
+-- possible assignments for a given eschema. In other words, it calculates
+-- all the possible homomorphisms for each attribute of the eschema.
+procedure POPULATE_POSSIBLE_VALUES(v_target_eschema in varchar2) as
+begin
+
+-- table of the possible values
+    -- for the atoms of an eschema
+    delete from possible_values;
+    insert into possible_values (atom_name, position, value, given_pos, given_value)
+    select * from (
+        select 'RELATION' as NAME, 1 as POSITION, r.name as "VALUE", null as GIVEN_POS, null as GIVEN_VALUE
+        from relations r
+        where r.eschema = v_target_eschema -- target e-schema
+        union
+        select 'ATTRIBUTE' as NAME, 1 as POSITION, att.name as "VALUE", '2' as GIVEN_POS, r.name as GIVEN_VALUE
+        from attributes att join relations r on (att.relation = r.id)
+        where r.eschema = v_target_eschema
+        union
+        select 'ATTRIBUTE' as NAME, 2 as POSITION, r.name as "VALUE", '1' as GIVEN_POS, att.name as GIVEN_VALUE
+        from attributes att join relations r on (att.relation = r.id)
+        where r.eschema = v_target_eschema
+        union
+        select 'KEY' as NAME, 1 as "POSITION", k.name as "VALUE", '2' as GIVEN_POS, r.name as GIVEN_VALUE
+        from keys k join relations r on (k.relation = r.id)
+        where r.eschema = v_target_eschema
+        union
+        select 'KEY' as NAME, 2 as "POSITION", r.name as "VALUE", '1' as GIVEN_POS, k.name as GIVEN_VALUE
+        from keys k join relations r on (k.relation = r.id)
+        where r.eschema = v_target_eschema
+        union
+        select 'FKEY' as NAME, 1 as "POSITION", att.name as "VALUE", '2' as GIVEN_POS, r1.name as GIVEN_VALUE
+        from fkeys fk join attributes att on (fk.from_column = att.id) join relations r on (r.id = att.relation)
+                join relations r1 on (r1.id = fk.to_relation)
+        where r.eschema = v_target_eschema
+        union 
+        select 'FKEY' as NAME, 2 as "POSITION", r1.name as "VALUE",  '1' as GIVEN_POS, att.name as GIVEN_VALUE
+        from fkeys fk join attributes att on (fk.from_column = att.id) join relations r on (r.id = att.relation)
+            join relations r1 on (r1.id = fk.to_relation)
+        where r.eschema = v_target_eschema
+    ) POSSIBLE_VALUES;
+
+
+end POPULATE_POSSIBLE_VALUES;
+
 
 procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_set_id out varchar2) as
 
@@ -249,7 +370,17 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
     
     v_source_eschema varchar2(20);
     v_target_eschema varchar2(20);
+    
+    v_h_var_id varchar2(20);
+    v_h_val varchar2(20);
+    v_h_id varchar2(20);
+    v_h_id_old varchar2(20);
+    
+    v_mapping_set varchar2(20);
+    v_new_mapping_id varchar2(20);
 
+    -- find the ambiguous variables in the LHS that are used differently
+    -- in the RHS.
     -- find the ambiguous variables that are used in RHS such that
     -- there are other ambiguous variables of the same LHS
     -- atom that are not used in the RHS
@@ -314,6 +445,10 @@ cursor cur_ambiguous_variables is
             )      
         )    
     );
+    
+    cursor cur_homo is
+    select id, variable, value from homomorphisms
+    order by id, variable;
 
 begin
 
@@ -326,6 +461,7 @@ begin
     -- of homonym atoms that are linked (joined) exactly to the same set
     -- of atoms by common variables
     -- in the LHS
+    delete from ambiguous_variables;
     insert into ambiguous_variables (VARIABLE, ATOM, ATOM_NAME)
     select distinct v.id as VARIABLE, a1.id as ATOM, a1.name as ATOM_NAME
     from 
@@ -370,285 +506,61 @@ begin
         );
         
     
-    open cur_ambiguous_variables;
 
     -- fetch source and target eschemas
     select source_schema, target_schema into v_source_eschema, v_target_eschema
     from mappings
     where id = v_mapping_id;
 
-
+    -- calculates all the possible assignments for all
+    -- the atoms of a given e-schema
+    POPULATE_POSSIBLE_VALUES(v_target_eschema);
+    -- calculates all possible homomorphism
+    ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'RHS');
+    
+    
+    -- we create the new mapping set
+    select seq_mapping_sets.nextval into v_mapping_set from dual;
+    v_h_id_old := null;
+    
+    open cur_homo;
     loop
-    fetch cur_ambiguous_variables into v_var_id, v_atom_id, v_atom_name;
-    exit when cur_ambiguous_variables%notfound;
-    
-    
-        dbms_output.put_line('Variable to repair: ' || v_var_id || ' in atom ' || v_atom_name);
+        fetch cur_homo into v_h_id, v_h_var_id, v_h_val;
+        exit when cur_homo%notfound;
         
-        declare
-            v_col_pos varchar2(20);
+        -- if homomorphism has changed, create a new mapping
+        if v_h_id_old is null or v_h_id <> v_h_id_old then
+            -- for each homomorphism it clones the original mapping
+            MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id,v_new_mapping_id);
+            insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_mapping_id);
+            dbms_output.put_line('New mapping ' || v_new_mapping_id || ' added to set ' || v_mapping_set);
+        end if;
         
-        begin
-        
-            -- fetches the position of the variable
-            select position into v_col_pos
-            from variables_atoms
-            where variable = v_var_id
-            and atom = v_atom_id;
-            
-            /*
-            if v_atom_name = 'RELATION' then
-                
-                select name
-                from relations
-                where eschema = v_target_eschema
-                
-            elsif v_atom_name = 'ATTRIBUTE' then
-            elsif v_atom_name = 'KEY' then
-            elsif v_atom_name = 'FKEY' then
-            end if;
-            
-            */
-        
-        end;
-        
-    
+        -- loops over all the ambiguous
+        -- variables and if finds the current one, it
+        -- saves the condition
+            open cur_ambiguous_variables;
+            loop
+                fetch cur_ambiguous_variables into v_var_id, v_atom_id, v_atom_name;
+                exit when cur_ambiguous_variables%notfound;
+                dbms_output.put_line('Variable to repair: ' || v_var_id || ' in atom ' || v_atom_name);            
+                -- if it finds the variable to repair
+                if v_var_id = v_h_var_id then
+                    insert into conditions(id, variable, value, cond_type) values
+                        (seq_conditions.nextval, v_var_id, v_h_val, 'EQ');
+                    dbms_output.put_line('Condition ' || v_var_id || '=' || v_h_val || ' added.');
+                end if;
+            end loop;
+            close cur_ambiguous_variables;
+        v_h_id_old := v_h_id;
     end loop;
-    
-    
-    close cur_ambiguous_variables;
-    
-    
+    close cur_homo;
+        
 end GET_REPAIRED_TEMPLATE_MAPPINGS;
 
 
 
-procedure PARSE_MAPPING(v_mapping_string in varchar2, v_mapping_id out varchar2) as
 
-atom_name varchar2(20) := 'dummy';
-param_list varchar2(20) := 'dummy';
-var varchar2(20) := 'dummy';
-v_condition varchar2(20) := 'dummy';
-v_cond_pos integer := 1;
-pos integer := 1;
-var_pos integer := 1;
-
-first_rhs varchar2(20); -- the first atom in the RHS
-lhs varchar(3) := 'LHS'; -- if considering the LHS or the RHS
-
-var_id varchar2(20) := null;
-v_quantification varchar(1); -- U or E
-
-mapping_id integer;
-
-begin
-
--- it detects the first atom in the RHS
--- so as to understand when actually parsing RHS
-select regexp_substr(v_mapping_string,'\-\>\s*(\w+)',1,1,NULL,1) into first_rhs from dual;
-
--- it stores the mapping
-insert into mappings(id, description, source_schema, target_schema, type) values (seq_mappings.nextval, v_mapping_string, null, null,'S');
-
--- stores the mapping id for later use
-select seq_mappings.currval into mapping_id from dual;
-
-dbms_output.put_line('Parsing LHS:');
-
-while atom_name is not null
-loop
-
-    var_pos := 1;
-    var := 'dummy';
-    select regexp_substr(v_mapping_string,'(\w+)\s*\(',1,pos,NULL,1) 
-    into atom_name from dual;
-    exit when atom_name is null;
-    
-    -- it detects if we have started to
-    -- parse the rhs
-    if atom_name = first_rhs then
-        dbms_output.put_line('Parsing RHS');
-        lhs := 'RHS';
-    end if;
-    
-    dbms_output.put_line('Atom : ' || atom_name);
-    
-    -- it stores the current atom
-    insert into atoms (id, name, mapping, lhs_rhs) values (seq_atoms.nextval,atom_name,seq_mappings.currval,lhs);
-    
-    select regexp_substr(v_mapping_string,'\(((\w+\s*,?\s*)+\s*\w*\s*)\)',1,pos,NULL,1) into param_list from dual;
-    
-    dbms_output.put_line('  Parameters : ' || param_list);
-
-    while var is not null
-    loop
-        select regexp_substr(param_list,'(\w+)',1,var_pos,NULL,1) into var from dual;
-        exit when var is null;
-        
-        -- to understand the quantification, it operates as follows.
-        -- It extracts the id of the variable, to understand if it
-        -- has already been added.
-        begin
-            select id into var_id
-            from variables where mapping = mapping_id and name = var;
-        exception
-            when no_data_found then
-                var_id := null;
-        end;
-        
-        -- Is we are in the RHS, and the variable appears for the first time
-        -- then it is existentially quantified
-        if lhs='RHS' and var_id is null then 
-            v_quantification := 'E';
-        -- else if in LHS or if the variable has already been used
-        -- then it is universally quantified
-        else  
-            v_quantification := 'U';
-        end if;
-        
-        dbms_output.put_line('      Variable: ('||v_quantification||') '|| var);
-
-        -- if the first time, generate an identifier and insert
-        if var_id is null then
-            insert into variables(name, mapping, quantification, id) values (var, seq_mappings.currval, v_quantification , seq_variables.nextval);
-            select seq_variables.currval into var_id from dual;
-        end if;
-        
-        -- it stores the current variable in the respective atom
-        insert into variables_atoms(variable, atom, position) values (var_id, seq_atoms.currval, var_pos);
-        
-        var_pos := var_pos + 1;
-    end loop;
-    pos := pos + 1;
-
-end loop;
-
--- to parse the conditions
-dbms_output.put_line('Conditions:');
-
-while v_condition is not null
-loop
-    select regexp_substr(v_mapping_string,',(\w+(=|<>)\"\w+\")',1,v_cond_pos,NULL,1) into v_condition from dual;
-    exit when v_condition is null;
-    
-    dbms_output.put_line('Condition: ' || v_condition);
-
-    declare
-        v_var varchar2(20);
-        v_var_id varchar2(20);
-        v_op varchar2(2);
-        v_val varchar2(20);
-        
-    begin
-        
-        select regexp_substr(v_condition,'(\w+)(=|<>)\"(\w+)\"',1,1,NULL,1) into v_var from dual;
-        select regexp_substr(v_condition,'(\w+)(=|<>)\"(\w+)\"',1,1,NULL,2) into v_op from dual;
-        select regexp_substr(v_condition,'(\w+)(=|<>)\"(\w+)\"',1,1,NULL,3) into v_val from dual;
-        
-        -- retrieves the id of the variable
-        -- for the current condition
-        select id into v_var_id
-        from variables
-        where name = v_var
-        and mapping = mapping_id;
-
-        insert into conditions(id, variable, value, cond_type)
-        values (seq_conditions.nextval, v_var_id, v_val, case when v_op = '=' then 'EQ' else 'NEQ' end);
-                
-    end;
-    
-    v_cond_pos := v_cond_pos + 1;
-        
-end loop;
-
-    
-
-
-
-v_mapping_id := mapping_id;
-
-dbms_output.put_line('Mapping generated: ' || v_mapping_id);
-
-end PARSE_MAPPING;
-
-procedure MAPPING_TO_STRING_BY_ID(v_mapping_id in varchar2, v_mapping_string out varchar2) as
-
--- cursor to rebuild the mapping string
-cursor cur_mapping is 
-select lhs_rhs, a.name as "ATOM", a.id as "ATOM_ID", v.name as "VARIABLE"
-    from 
-        mappings m join atoms a on (a.mapping = m.id)
-        join variables_atoms va on (a.id = va.atom)
-        join variables v on (va.variable = v.id)
-    where m.id = v_mapping_id
-    order by lhs_rhs, a.id, va.position;
-
-cursor cur_conditions is
-select v.name, case when cond_type = 'EQ' then '=' else '<>' end, cond.value
-from conditions cond join variables v on (cond.variable = v.id)
-where v.mapping = v_mapping_id;
-    
-v_lhs_rhs varchar2(20);
-v_atom_name varchar2(20);
-v_atom_id varchar2(20);
-v_var_name varchar2(20);
-
-v_cond_var varchar2(20);
-v_cond_op varchar2(2);
-v_cond_val varchar2(20);
-
-
-v_rhs_ok boolean := false;
-
-v_prev_atom_id varchar2(20) := null;
-
-begin
-
-open cur_mapping;
-
-loop
-    fetch cur_mapping into v_lhs_rhs, v_atom_name, v_atom_id, v_var_name;
-    exit when cur_mapping%notfound;
-    
-    -- sets the '->' symbol
-    if not v_rhs_ok and v_lhs_rhs = 'RHS' then
-        -- close the last atom
-        v_mapping_string := v_mapping_string || ')';
-        
-        -- parse the conditions
-        open cur_conditions;
-        loop
-        fetch cur_conditions into v_cond_var, v_cond_op, v_cond_val;
-        exit when cur_conditions%notfound;
-            v_mapping_string := v_mapping_string || ','||v_cond_var||v_cond_op||'"'||v_cond_val||'"';
-        end loop;
-        close cur_conditions;
-        
-        -- the arrow
-        v_mapping_string := v_mapping_string || '->';
-        -- and starts from a new atom
-        v_prev_atom_id := null;
-        v_rhs_ok := true;
-    end if;
-    
-    -- if the first atom of LHS or RHS
-    if v_prev_atom_id is null then
-        v_mapping_string := v_mapping_string || v_atom_name || '(' || v_var_name;
-    -- if a new atom, close the previous and open a new one
-    elsif v_prev_atom_id != v_atom_id then
-        v_mapping_string := v_mapping_string || '),' || v_atom_name || '(' || v_var_name;
-    -- if the same atom, just another variable
-    else
-        v_mapping_string := v_mapping_string || ',' || v_var_name;
-    end if;
-    
-    v_prev_atom_id := v_atom_id;
-            
-end loop;
-    
-    v_mapping_string := v_mapping_string || ')';
-
-end MAPPING_TO_STRING_BY_ID;
 
 -- It verifies if a mapping appropriately applies
 -- to a source and a target schema

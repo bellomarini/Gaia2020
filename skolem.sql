@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Thursday-February-11-2016   
+--  File created - Friday-February-19-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body SKOLEM
@@ -171,6 +171,30 @@ function keys_from_variables_sk(v_atom_name varchar2, v_variable_position varcha
     
     end atoms_from_fkeys_sk;
     
+    
+    function atoms_from_atoms_sk(v_atom_id varchar2, v_mapping_id varchar2) return varchar2 as
+       v_id_out varchar2(20);
+    begin
+    
+    begin
+    -- if the function has already been calculated then return that value
+        select out into v_id_out
+        from atoms_sk
+        where function = 'atoms_from_atoms_sk'
+        and atom_id = v_atom_id
+        and mapping = v_mapping_id;
+        -- if this is the first time, then calculate the value from the sequence
+        -- and insert it for later use
+        exception
+            when no_data_found then
+                select seq_atoms.nextval into v_id_out from dual;
+                insert into atoms_sk(out, function, atom_id, mapping) 
+                values (v_id_out,'atoms_from_atoms_sk',v_atom_id, v_mapping_id);
+        end;
+        return v_id_out;
+    
+    end atoms_from_atoms_sk;
+    
     function variables_from_literals_sk(v_literal varchar2, v_mapping varchar2) return varchar2 as
     v_id_out varchar2(20);
     begin
@@ -193,7 +217,33 @@ function keys_from_variables_sk(v_atom_name varchar2, v_variable_position varcha
         return v_id_out;    
     
     end variables_from_literals_sk;
+    
+    
+    function variables_from_variables_sk(v_variable varchar2, v_mapping varchar2) return varchar2 as
+    v_id_out varchar2(20);
+    begin
+    
+    begin
+    -- if the function has already been calculated then return that value
+        select out into v_id_out
+        from variables_sk
+        where function = 'variables_from_variables_sk'
+        and variable_id = v_variable
+        and mapping = v_mapping;
+        -- if this is the first time, then calculate the value from the sequence
+        -- and insert it for later use
+        exception
+            when no_data_found then
+                select seq_variables.nextval into v_id_out from dual;
+                insert into variables_sk(out, function, variable_id, mapping) 
+                values (v_id_out,'variables_from_variables_sk',v_variable, v_mapping);
+        end;
+        return v_id_out;    
+    
 
+
+    end variables_from_variables_sk;
+ 
 END SKOLEM;
 
 /

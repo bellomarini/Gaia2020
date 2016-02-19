@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Saturday-February-13-2016   
+--  File created - Friday-February-19-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Table VARIABLES_SK
@@ -9,7 +9,8 @@
    (	"OUT" VARCHAR2(20 BYTE), 
 	"FUNCTION" VARCHAR2(100 BYTE), 
 	"LITERAL" VARCHAR2(20 BYTE), 
-	"MAPPING" VARCHAR2(20 BYTE)
+	"MAPPING" VARCHAR2(20 BYTE), 
+	"VARIABLE_ID" VARCHAR2(20 BYTE)
    ) SEGMENT CREATION IMMEDIATE 
   PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 NOCOMPRESS LOGGING
   STORAGE(INITIAL 65536 NEXT 1048576 MINEXTENTS 1 MAXEXTENTS 2147483645
