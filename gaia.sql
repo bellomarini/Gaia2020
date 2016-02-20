@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Friday-February-19-2016   
+--  File created - Saturday-February-20-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -286,9 +286,7 @@ cursor cur_homo is
     -- For each set of tuples produce one mapping by assigning the corresponding variables.
 
 begin
-    
-    delete from homomorphisms;
-    
+        
     open cur_homo;
     loop
     fetch cur_homo into path;
@@ -300,7 +298,7 @@ begin
             exit when var_val is null;
                 select regexp_substr(var_val,'(\w+)\:(\w+)',1,1,null,1) into var from dual;
                 select regexp_substr(var_val,'(\w+)\:(\w+)',1,1,null,2) into val from dual;
-                insert into homomorphisms(id, variable, value) values (v_id_homo, var, val);
+                insert into homomorphisms(id, variable, value,LHS_RHS) values (v_id_homo, var, val, XHS);
             var_pos := var_pos + 1;
         end loop;
     
@@ -445,6 +443,30 @@ cursor cur_ambiguous_variables is
     cursor cur_homo is
     select id, variable, value from homomorphisms
     order by id, variable;
+    
+    cursor cur_neg_homo is
+        -- We individuate the assignments in the
+        -- homomorphsism in the LHS
+        -- that are are incompatible with
+        -- all the assignments of any homomorphism in the RHS
+        select id, variable, value
+        from homomorphisms h1
+        where
+            h1.LHS_RHS = 'LHS'
+        and exists ( -- the variable appears in the RHS
+            select * 
+            from variables_atoms va join atoms a on (va.atom = a.id)
+            where 
+                a.LHS_RHS = 'RHS'
+                and va.variable = h1.variable
+                and a.mapping = v_mapping_id
+        )                
+        and not exists ( -- a compatible assignment does not exist in any homomorphism
+            select *
+            from homomorphisms h2
+            where h2.LHS_RHS = 'RHS'
+            and h1.variable = h2.variable
+            and h1.value = h2.value);
 
 begin
 
@@ -501,12 +523,16 @@ begin
             and va222.position = va.position
         );
         
-    
-
     -- fetch source and target eschemas
     select source_schema, target_schema into v_source_eschema, v_target_eschema
     from mappings
     where id = v_mapping_id;
+    
+    -- to erase the temporary table
+    delete from homomorphisms;
+
+    -- %%%% POSITIVE REPAIRS %%%% --
+    dbms_output.put_line('Positive repairs');
 
     -- calculates all the possible assignments for all
     -- the atoms of a given e-schema
@@ -533,7 +559,7 @@ begin
         end if;
         
         -- loops over all the ambiguous
-        -- variables and if finds the current one, it
+        -- variables and if we find the current one, it
         -- saves the condition
             open cur_ambiguous_variables;
             loop
@@ -548,19 +574,56 @@ begin
                 end if;
             end loop;
             close cur_ambiguous_variables;
-            -- we update the mapping description
-            MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_mapping_id);
+        
+        MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_mapping_id);
 
         v_h_id_old := v_h_id;
     end loop;
     close cur_homo;
     
+    -- TODO: negative repairs and 
+    -- positive repairs now are first considered separately
+    -- but then are combined for different ambiguous variables
+    -- with a shuffling of the mapping_set
     
+    -- %%%% NEGATIVE REPAIRS %%%% --
+    dbms_output.put_line('Negative repairs');
+        
+    -- We calculate all the LHS homomorphisms
+    POPULATE_POSSIBLE_VALUES(v_source_eschema);
+    ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'LHS');
+
+    v_h_id_old := null;
+     
+    -- create a new mapping
+    -- cloning the original mapping
+    MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_mapping_id);
+    
+    insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_mapping_id);
+            dbms_output.put_line('New mapping ' || v_new_mapping_id || ' added to set ' || v_mapping_set);
+        
+    -- There is no need to use the cursors
+    -- for the ambiguous variables in the negative repair,
+    -- since the conditions directly derive from
+    -- the fact that the homomorphism is not extensible.
+    open cur_neg_homo;
+    loop
+        fetch cur_neg_homo into v_h_id, v_h_var_id, v_h_val;
+        exit when cur_neg_homo%notfound;
+
+        dbms_output.put_line('Variable to repair: ' || v_h_var_id || ' in atom ' || v_atom_name);            
+                    insert into conditions(id, variable, value, cond_type) values
+                        (seq_conditions.nextval, skolem.variables_from_variables_sk(v_h_var_id, v_new_mapping_id), v_h_val, 'NEQ');
+                        dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_h_var_id, v_new_mapping_id) || '<>' || v_h_val || ' added.');
+        
+    end loop;
+    close cur_neg_homo;
+        
+    -- we update the mapping description
+    MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_mapping_id);
 
         
 end GET_REPAIRED_TEMPLATE_MAPPINGS;
-
-
 
 
 
