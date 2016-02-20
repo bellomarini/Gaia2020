@@ -21,6 +21,9 @@ procedure MAPPING_TO_STRING_BY_ID(v_mapping_id in varchar2, v_mapping_string out
 -- It clones a mapping and returns the id of the new one.
 procedure CLONE_MAPPING(v_mapping_id in varchar2, v_new_mapping_id out varchar2);
 
+-- It calculates and updates the description of the mapping
+procedure UPDATE_DESCRIPTION(v_mapping_id in varchar2);
+
 END MAPPINGS_UTILS;
 
 /

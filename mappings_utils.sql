@@ -253,7 +253,7 @@ begin
         
     -- variables
     insert into variables(id, name, mapping, quantification)
-        select skolem.variables_from_variables_sk(id, v_new_mapping_id), name, v_new_mapping_id, quantification
+        select skolem.variables_from_variables_sk(id, v_new_mapping_id), 'var' || skolem.variables_from_variables_sk(id, v_new_mapping_id), v_new_mapping_id, quantification
         from variables
         where mapping = v_mapping_id;
     
@@ -266,7 +266,7 @@ begin
     where atom in (
         select id
         from atoms
-        where mapping = v_new_mapping_id);
+        where mapping = v_mapping_id);
     
     -- conditions
     insert into conditions(id, variable, value, cond_type)
@@ -277,14 +277,17 @@ begin
             select id
             from variables
             where mapping = v_mapping_id);
-        
-        
 end CLONE_MAPPING;
 
+procedure UPDATE_DESCRIPTION(v_mapping_id in varchar2) as
+    v_mapping_string varchar2(400);
+begin
+        MAPPINGS_UTILS.MAPPING_TO_STRING_BY_ID(v_mapping_id, v_mapping_string);
+        update mappings
+        set description = v_mapping_string
+        where id = v_mapping_id;
 
-
-
-
+end UPDATE_DESCRIPTION;
 
 END MAPPINGS_UTILS;
 

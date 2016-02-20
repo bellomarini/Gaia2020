@@ -230,12 +230,8 @@ BEGIN
                 )
             );
         
-        -- We update the textual description of the template mapping
-        
-        MAPPINGS_UTILS.MAPPING_TO_STRING_BY_ID(v_mapping_id, v_mapping_string);
-        update mappings
-        set description = v_mapping_string
-        where id = v_mapping_id;
+        -- We update the textual description of the template mapping        
+        MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_mapping_id);
         
         dbms_output.put_line('Generated template mapping: ' || v_mapping_id);
         
@@ -543,18 +539,24 @@ begin
             loop
                 fetch cur_ambiguous_variables into v_var_id, v_atom_id, v_atom_name;
                 exit when cur_ambiguous_variables%notfound;
-                dbms_output.put_line('Variable to repair: ' || v_var_id || ' in atom ' || v_atom_name);            
                 -- if it finds the variable to repair
                 if v_var_id = v_h_var_id then
+                    dbms_output.put_line('Variable to repair: ' || v_var_id || ' in atom ' || v_atom_name);            
                     insert into conditions(id, variable, value, cond_type) values
-                        (seq_conditions.nextval, v_var_id, v_h_val, 'EQ');
-                    dbms_output.put_line('Condition ' || v_var_id || '=' || v_h_val || ' added.');
+                        (seq_conditions.nextval, skolem.variables_from_variables_sk(v_var_id, v_new_mapping_id), v_h_val, 'EQ');
+                        dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_var_id, v_new_mapping_id) || '=' || v_h_val || ' added.');
                 end if;
             end loop;
             close cur_ambiguous_variables;
+            -- we update the mapping description
+            MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_mapping_id);
+
         v_h_id_old := v_h_id;
     end loop;
     close cur_homo;
+    
+    
+
         
 end GET_REPAIRED_TEMPLATE_MAPPINGS;
 
