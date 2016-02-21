@@ -350,6 +350,95 @@ begin
 
 end POPULATE_POSSIBLE_VALUES;
 
+-- It takes as input a mapping set of repaired template mappings 
+-- and enriches it with all the new mappings that are obtained 
+-- by combining the conditions of the various mappings, 
+-- picking the condition for one variable from
+-- each template mapping
+
+procedure SHUFFLE_MAPPING_SET (v_mapping_sets_id in varchar2) as
+
+ cursor cur_shuffling is
+        -- It builds the paths of all the possible
+        -- choices for the conditions
+        -- of the form "/original_variable_id:condition_from_mapping"
+        -- It builds the paths of all the possible
+        -- choices for the conditions
+        -- of the form "/original_variable_id:condition_from_mapping"
+            select sys_connect_by_path(original_variable ||':'||from_mapping,'/') conditions, mapping from (
+                select distinct orig_var.id original_variable, var.mapping from_mapping, orig_var.mapping
+                from conditions c join variables var on (c.variable = var.id)
+                    join mappings m on (m.id = var.mapping), variables orig_var
+                where 
+                    var.mapping in (select mapping from mapping_sets where id = v_mapping_sets_id)
+                    and orig_var.mapping = m.repair_ref
+                    and c.variable = skolem.variables_from_variables_sk(orig_var.id,m.id)
+            ) 
+            where connect_by_isleaf = 1
+            connect by nocycle (prior original_variable <> original_variable and prior from_mapping <> from_mapping);
+    
+        -- we then iterate along these paths and build a mappign for each
+        -- cloning the mapping and taking the conditions from
+        -- the appropriate source mapping
+        
+    v_conditions varchar2(500);
+    v_variable_id varchar2(20);
+    v_from_mapping_id varchar2(20);
+    v_original_mapping_id varchar2(20);
+    v_var_map varchar2(20);
+    v_var varchar2(20);
+    v_map varchar2(20);
+    
+    v_var_pos integer := 1;
+    
+    v_new_mapping_id varchar2(20);
+
+
+begin
+    
+    open cur_shuffling;
+    loop
+        fetch cur_shuffling into v_conditions, v_original_mapping_id;
+        exit when cur_shuffling%notfound;
+        -- each row of the cursor represents a choice for all the conditions
+        -- we clone the original mapping, parse the conditions and add them
+        mappings_utils.clone_mapping(v_original_mapping_id, v_new_mapping_id);
+        
+        -- add the mapping to the mapping set
+        insert into mapping_sets (id, mapping) values (v_mapping_sets_id, v_new_mapping_id);
+        
+        v_var_pos := 1;
+        
+        loop
+            select regexp_substr(v_conditions,'\w+:\w+',1,v_var_pos) into v_var_map from dual;
+            exit when v_var_map is null;
+                select regexp_substr(v_var_map,'(\w+)\:(\w+)',1,1,null,1) into v_var from dual;
+                select regexp_substr(v_var_map,'(\w+)\:(\w+)',1,1,null,2) into v_map from dual;
+                
+                dbms_output.put_line('  Condition on the variable ' || v_var);
+                dbms_output.put_line('  From the mapping ' || v_map);
+                
+                -- retrieves the value and cond_type of the condition for v_var in v_map
+                -- and creates the new condition
+                -- finding the corresponding ariables with the Skolem function
+                insert into conditions(id, variable, value, cond_type)
+                    select seq_conditions.nextval, skolem.variables_from_variables_sk(v_var,v_new_mapping_id), 
+                    value, cond_type
+                    from conditions c join variables v on (c.variable = v.id)
+                    where v.mapping = v_map
+                        and c.variable = skolem.variables_from_variables_sk(v_var,v_map);
+                
+                v_var_pos := v_var_pos + 1;
+        end loop;
+        
+        -- We update the description of the generated mapping
+        mappings_utils.update_description(v_new_mapping_id);
+                
+    end loop;
+    
+    close cur_shuffling;
+end SHUFFLE_MAPPING_SET;
+
 
 procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_set_id out varchar2) as
 
@@ -362,7 +451,8 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
     v_h_id_old varchar2(20);
     
     v_mapping_set varchar2(20);
-    v_new_mapping_id varchar2(20);
+    v_new_pos_mapping_id varchar2(20);
+    v_new_neg_mapping_id varchar2(20);
 
     cursor cur_homo is
     select id, variable, value from homomorphisms
@@ -425,13 +515,15 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                         and a.mapping = v_mapping_id
                 )
                 and not exists ( -- and is incompatible with all the assignments
-                 select *
-                from homomorphisms h4
-                where h4.LHS_RHS = 'RHS'
-                and h3.variable = h4.variable
-                and h3.value = h4.value
+                    select *
+                    from homomorphisms h4
+                    where h4.LHS_RHS = 'RHS'
+                    and h3.variable = h4.variable
+                    and h3.value = h4.value
                 )
         );
+        
+       
         
 
 begin
@@ -456,11 +548,6 @@ begin
     select seq_mapping_sets.nextval into v_mapping_set from dual;
     v_h_id_old := null;
     
-    -- TODO: negative repairs and 
-    -- positive repairs now are first considered separately
-    -- but then are combined for different ambiguous variables
-    -- with a shuffling of the mapping_set
-    
     -- %%%% POSITIVE REPAIRS %%%% --
     dbms_output.put_line('Positive repairs');
         
@@ -468,10 +555,10 @@ begin
      
     -- create a new mapping
     -- cloning the original mapping
-    MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_mapping_id);
+    MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_pos_mapping_id);
     
-    insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_mapping_id);
-            dbms_output.put_line('New mapping ' || v_new_mapping_id || ' added to set ' || v_mapping_set);
+    insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_pos_mapping_id);
+            dbms_output.put_line('New mapping ' || v_new_pos_mapping_id || ' added to set ' || v_mapping_set);
         
     open cur_pos_homo;
     loop
@@ -480,14 +567,14 @@ begin
 
         dbms_output.put_line('Variable to repair: ' || v_h_var_id);            
                     insert into conditions(id, variable, value, cond_type) values
-                        (seq_conditions.nextval, skolem.variables_from_variables_sk(v_h_var_id, v_new_mapping_id), v_h_val, 'EQ');
-                        dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_h_var_id, v_new_mapping_id) || '=' || v_h_val || ' added.');
+                        (seq_conditions.nextval, skolem.variables_from_variables_sk(v_h_var_id, v_new_pos_mapping_id), v_h_val, 'EQ');
+                        dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_h_var_id, v_new_pos_mapping_id) || '=' || v_h_val || ' added.');
         
     end loop;
     close cur_pos_homo;
     
     -- we update the mapping description
-    MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_mapping_id);
+    MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_pos_mapping_id);
 
     -- %%%% NEGATIVE REPAIRS %%%% --
     dbms_output.put_line('Negative repairs');
@@ -496,10 +583,10 @@ begin
      
     -- create a new mapping
     -- cloning the original mapping
-    MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_mapping_id);
+    MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_neg_mapping_id);
     
-    insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_mapping_id);
-            dbms_output.put_line('New mapping ' || v_new_mapping_id || ' added to set ' || v_mapping_set);
+    insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_neg_mapping_id);
+            dbms_output.put_line('New mapping ' || v_new_neg_mapping_id || ' added to set ' || v_mapping_set);
         
     open cur_neg_homo;
     loop
@@ -508,15 +595,20 @@ begin
 
         dbms_output.put_line('Variable to repair: ' || v_h_var_id);            
                     insert into conditions(id, variable, value, cond_type) values
-                        (seq_conditions.nextval, skolem.variables_from_variables_sk(v_h_var_id, v_new_mapping_id), v_h_val, 'NEQ');
-                        dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_h_var_id, v_new_mapping_id) || '<>' || v_h_val || ' added.');
+                        (seq_conditions.nextval, skolem.variables_from_variables_sk(v_h_var_id, v_new_neg_mapping_id), v_h_val, 'NEQ');
+                        dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_h_var_id, v_new_neg_mapping_id) || '<>' || v_h_val || ' added.');
         
     end loop;
     close cur_neg_homo;
         
     -- we update the mapping description
-    MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_mapping_id);
-
+    MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_neg_mapping_id);
+    
+    -- We now do the shuffling so as to generate all the possible combinations
+    -- of conditions
+    dbms_output.put_line('Shuffling');
+    SHUFFLE_MAPPING_SET(v_mapping_set);
+    
 end GET_REPAIRED_TEMPLATE_MAPPINGS;
 
 
