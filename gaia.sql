@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Saturday-February-20-2016   
+--  File created - Sunday-February-21-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -7,13 +7,8 @@
 
   CREATE OR REPLACE PACKAGE BODY "GAIA"."GAIA" AS
 
-PROCEDURE GET_CANONICAL_TEMPLATE_MAPPING 
-(
-  v_e_schema1 IN VARCHAR2  
-, v_e_schema2 IN VARCHAR2  
-) AS 
-
-    v_mapping_id varchar2(20);
+PROCEDURE GET_CANONICAL_TEMPLATE_MAPPING (v_e_schema1 IN VARCHAR2, v_e_schema2 IN VARCHAR2, v_mapping_id out varchar2)
+AS 
     v_mapping_string varchar2(200);
     
 BEGIN
@@ -358,10 +353,6 @@ end POPULATE_POSSIBLE_VALUES;
 
 procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_set_id out varchar2) as
 
-    v_var_id varchar2(20);
-    v_atom_id varchar2(20);
-    v_atom_name varchar2(20);
-    
     v_source_eschema varchar2(20);
     v_target_eschema varchar2(20);
     
@@ -373,82 +364,16 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
     v_mapping_set varchar2(20);
     v_new_mapping_id varchar2(20);
 
-    -- find the ambiguous variables in the LHS that are used differently
-    -- in the RHS.
-    -- find the ambiguous variables that are used in RHS such that
-    -- there are other ambiguous variables of the same LHS
-    -- atom that are not used in the RHS
-    -- or are used differently, that is:
-    -- a. used  in non-homonym atoms
-    -- b. used  in homonym atoms but in different positions
-    -- c. used  in homonym atoms, in the same position, but those atoms have some non-common variables
-cursor cur_ambiguous_variables is
-    select av.variable, a.id as atom_id, a.name as atom_name 
-    from ambiguous_variables av -- ambiguous variables that are used also in RHS
-        join variables_atoms va on (va.variable = av.variable) 
-        join atoms a on (va.atom = a.id and a.LHS_RHS='RHS')
-    
-    where (exists ( -- with some other variables of the same atom not used in RHS
-        select * 
-        from ambiguous_variables av1
-        where av.atom_name = av1.atom_name
-        and av.variable <> av1.variable
-        and not exists ( -- not used in the RHS
-            select *
-            from variables_atoms va1 join atoms a1 on (va1.atom = a1.id)
-            where va1.variable = av1.variable
-            and a1.LHS_RHS='RHS'
-        )
-        )
-        or exists ( -- or there is some ambiguous variable of the same LHS atom used
-                    -- in a different atom at RHS, or at a different position
-                    select * 
-            from ambiguous_variables av1 join variables_atoms va1 on (av1.variable = va1.variable)
-            where av.atom_name = av1.atom_name
-            and av.variable <> av1.variable
-            and exists (
-                select *
-                from variables_atoms va2 join atoms a2 on (va2.atom = a2.id)
-                where va2.variable = av1.variable
-                and a2.LHS_RHS='RHS'
-                and (a2.name <> av1.atom_name or va2.position <> va1.position)
-            
-            )      
-            ) -- or there is some ambiguous variable of the same LHS atom used
-              -- in a homonym attribute, at the right position in the RHS, but the two
-              -- atoms have some non-common variables
-        or exists (
-        select * 
-            from ambiguous_variables av1 join variables_atoms va1 on (av1.variable = va1.variable)
-            where av.atom_name = av1.atom_name
-            and av.variable <> av1.variable
-            and exists (
-                select *
-                from variables_atoms va2 join atoms a2 on (va2.atom = a2.id)
-                where va2.variable = av1.variable
-                and a2.LHS_RHS='RHS'
-                and a2.name = av1.atom_name 
-                and va2.position = va1.position
-                and exists (
-                    select *
-                    from variables_atoms va3 join atoms a3 on (a3.id = va3.atom)
-                    where a3.name = a2.name
-                    and a3.LHS_RHS='RHS'
-                    and va3.variable <> va2.variable
-                )
-            )      
-        )    
-    );
-    
     cursor cur_homo is
     select id, variable, value from homomorphisms
     order by id, variable;
-    
+        
     cursor cur_neg_homo is
         -- We individuate the assignments in the
         -- homomorphsism in the LHS
         -- that are are incompatible with
         -- all the assignments of any homomorphism in the RHS
+        -- These assignments must be excluded in the negative repairs.
         select id, variable, value
         from homomorphisms h1
         where
@@ -467,61 +392,49 @@ cursor cur_ambiguous_variables is
             where h2.LHS_RHS = 'RHS'
             and h1.variable = h2.variable
             and h1.value = h2.value);
+            
+        cursor cur_pos_homo is
+        -- We individuate all the assignments in the homomorphism
+        -- in the LHS that are compatible with all the assignments
+        -- of any homomorphism in the RHS and
+        -- for which there exists
+        -- another possible assignment in some homomorphism in the LHS, 
+        -- for the same variable,
+        -- that is incompatible with all the assignments in the RHS.
+        -- These assignments must be forced with conditions.
+        select id, variable, value
+        from homomorphisms h1
+        where h1.LHS_RHS = 'LHS'
+        and not exists ( -- compatible with all the RHS ones i.e. no incompatibilities exist
+            select * from
+            homomorphisms h2
+            where h2.LHS_RHS = 'RHS'
+            and h2.variable = h1.variable
+            and h2.value <> h1.value
+        ) and exists (-- there are other assignments in the LHS
+            select * from
+            homomorphisms h3
+            where h3.LHS_RHS = 'LHS'
+            and h3.variable = h1.variable -- which are incompatible
+                and exists ( -- the variable appears at 'RHS'
+                    select * 
+                    from variables_atoms va join atoms a on (va.atom = a.id)
+                    where 
+                        a.LHS_RHS = 'RHS'
+                        and va.variable = h3.variable
+                        and a.mapping = v_mapping_id
+                )
+                and not exists ( -- and is incompatible with all the assignments
+                 select *
+                from homomorphisms h4
+                where h4.LHS_RHS = 'RHS'
+                and h3.variable = h4.variable
+                and h3.value = h4.value
+                )
+        );
+        
 
 begin
-
-    -- if in the LHS there are two atoms A(x,y,...), A(z,k,...) with the same name
-    -- and with variables in common only with the same atoms (i.e. the same join conditions) or with no common variables    
-    -- and some of their variables also appear in the RHS
-    
-    -- find the ambiguous variables, that is,
-    -- all the non-common variables
-    -- of homonym atoms that are linked (joined) exactly to the same set
-    -- of atoms by common variables
-    -- in the LHS
-    delete from ambiguous_variables;
-    insert into ambiguous_variables (VARIABLE, ATOM, ATOM_NAME)
-    select distinct v.id as VARIABLE, a1.id as ATOM, a1.name as ATOM_NAME
-    from 
-         atoms a1 
-            join atoms a2 on (a1.name = a2.name and a1.id<>a2.id and a1.mapping = a2.mapping)
-            join variables_atoms va on (va.atom = a1.id)
-            join variables v on (v.id = va.variable)
-    where 
-        a1.mapping=v_mapping_id
-        and a1.LHS_RHS='LHS'
-        and a1.LHS_RHS = a2.LHS_RHS
-    -- and then exclude those connected to different atoms
-    -- by different variables
-        and not exists (
-            select *
-            from variables_atoms va1,  variables_atoms va2,
-                 variables_atoms va11, variables_atoms va22,
-                 atoms a11, atoms a22
-            where 
-                va1.atom = a1.id
-            and va2.atom = a2.id
-            and va1.variable <> va2.variable
-            and va11.variable = va1.variable
-            and va11.position = va1.position
-            and va22.variable = va2.variable
-            and va22.position = va22.position
-            and va11.atom <> va22.atom
-            and va11.atom <> va1.atom
-            and va22.atom <> va2.atom
-            and va11.atom <> va2.atom
-            and va22.atom <> va1.atom
-            and a11.id = va11.atom
-            and a22.id = va22.atom
-            and a11.LHS_RHS = a22.LHS_RHS
-            and a11.LHS_RHS = a1.LHS_RHS
-        ) and not exists ( -- for the non-common variables
-            select *
-            from variables_atoms va222
-            where va222.atom = a2.id
-            and va222.variable = va.variable
-            and va222.position = va.position
-        );
         
     -- fetch source and target eschemas
     select source_schema, target_schema into v_source_eschema, v_target_eschema
@@ -531,68 +444,26 @@ begin
     -- to erase the temporary table
     delete from homomorphisms;
 
-    -- %%%% POSITIVE REPAIRS %%%% --
-    dbms_output.put_line('Positive repairs');
-
-    -- calculates all the possible assignments for all
-    -- the atoms of a given e-schema
+    -- We calculate all the RHS homorphisms
     POPULATE_POSSIBLE_VALUES(v_target_eschema);
-    -- calculates all possible homomorphism
     ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'RHS');
     
+    -- We calculate all the LHS homomorphisms
+    POPULATE_POSSIBLE_VALUES(v_source_eschema);
+    ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'LHS');
     
     -- we create the new mapping set
     select seq_mapping_sets.nextval into v_mapping_set from dual;
     v_h_id_old := null;
-    
-    open cur_homo;
-    loop
-        fetch cur_homo into v_h_id, v_h_var_id, v_h_val;
-        exit when cur_homo%notfound;
-        
-        -- if homomorphism has changed, create a new mapping
-        if v_h_id_old is null or v_h_id <> v_h_id_old then
-            -- for each homomorphism it clones the original mapping
-            MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id,v_new_mapping_id);
-            insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_mapping_id);
-            dbms_output.put_line('New mapping ' || v_new_mapping_id || ' added to set ' || v_mapping_set);
-        end if;
-        
-        -- loops over all the ambiguous
-        -- variables and if we find the current one, it
-        -- saves the condition
-            open cur_ambiguous_variables;
-            loop
-                fetch cur_ambiguous_variables into v_var_id, v_atom_id, v_atom_name;
-                exit when cur_ambiguous_variables%notfound;
-                -- if it finds the variable to repair
-                if v_var_id = v_h_var_id then
-                    dbms_output.put_line('Variable to repair: ' || v_var_id || ' in atom ' || v_atom_name);            
-                    insert into conditions(id, variable, value, cond_type) values
-                        (seq_conditions.nextval, skolem.variables_from_variables_sk(v_var_id, v_new_mapping_id), v_h_val, 'EQ');
-                        dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_var_id, v_new_mapping_id) || '=' || v_h_val || ' added.');
-                end if;
-            end loop;
-            close cur_ambiguous_variables;
-        
-        MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_mapping_id);
-
-        v_h_id_old := v_h_id;
-    end loop;
-    close cur_homo;
     
     -- TODO: negative repairs and 
     -- positive repairs now are first considered separately
     -- but then are combined for different ambiguous variables
     -- with a shuffling of the mapping_set
     
-    -- %%%% NEGATIVE REPAIRS %%%% --
-    dbms_output.put_line('Negative repairs');
+    -- %%%% POSITIVE REPAIRS %%%% --
+    dbms_output.put_line('Positive repairs');
         
-    -- We calculate all the LHS homomorphisms
-    POPULATE_POSSIBLE_VALUES(v_source_eschema);
-    ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'LHS');
-
     v_h_id_old := null;
      
     -- create a new mapping
@@ -602,16 +473,40 @@ begin
     insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_mapping_id);
             dbms_output.put_line('New mapping ' || v_new_mapping_id || ' added to set ' || v_mapping_set);
         
-    -- There is no need to use the cursors
-    -- for the ambiguous variables in the negative repair,
-    -- since the conditions directly derive from
-    -- the fact that the homomorphism is not extensible.
+    open cur_pos_homo;
+    loop
+        fetch cur_pos_homo into v_h_id, v_h_var_id, v_h_val;
+        exit when cur_pos_homo%notfound;
+
+        dbms_output.put_line('Variable to repair: ' || v_h_var_id);            
+                    insert into conditions(id, variable, value, cond_type) values
+                        (seq_conditions.nextval, skolem.variables_from_variables_sk(v_h_var_id, v_new_mapping_id), v_h_val, 'EQ');
+                        dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_h_var_id, v_new_mapping_id) || '=' || v_h_val || ' added.');
+        
+    end loop;
+    close cur_pos_homo;
+    
+    -- we update the mapping description
+    MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_mapping_id);
+
+    -- %%%% NEGATIVE REPAIRS %%%% --
+    dbms_output.put_line('Negative repairs');
+        
+    v_h_id_old := null;
+     
+    -- create a new mapping
+    -- cloning the original mapping
+    MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_mapping_id);
+    
+    insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_mapping_id);
+            dbms_output.put_line('New mapping ' || v_new_mapping_id || ' added to set ' || v_mapping_set);
+        
     open cur_neg_homo;
     loop
         fetch cur_neg_homo into v_h_id, v_h_var_id, v_h_val;
         exit when cur_neg_homo%notfound;
 
-        dbms_output.put_line('Variable to repair: ' || v_h_var_id || ' in atom ' || v_atom_name);            
+        dbms_output.put_line('Variable to repair: ' || v_h_var_id);            
                     insert into conditions(id, variable, value, cond_type) values
                         (seq_conditions.nextval, skolem.variables_from_variables_sk(v_h_var_id, v_new_mapping_id), v_h_val, 'NEQ');
                         dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_h_var_id, v_new_mapping_id) || '<>' || v_h_val || ' added.');
@@ -622,7 +517,6 @@ begin
     -- we update the mapping description
     MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_mapping_id);
 
-        
 end GET_REPAIRED_TEMPLATE_MAPPINGS;
 
 
