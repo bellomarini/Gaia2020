@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Sunday-February-21-2016   
+--  File created - Monday-February-22-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -244,48 +244,41 @@ procedure ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id in varchar2, XHS in varchar2) 
     v_id_homo varchar2(20);
     
 cursor cur_homo is
-   -- each row is a string "| var:val/var:val/var:val | .... "
-    select sys_connect_by_path(PATH,'|') as homo
-    from (
-    select PATH, ROOT
-    from (
-    select A.*, sys_connect_by_path(a.variable||':'||a.value,'/') as path, connect_by_isleaf as is_leaf, connect_by_root (variable) as root 
-    from (
-        select pv.*, va.variable, nullif(g_va.variable,va.variable) as GIVEN_VARIABLE
-        from possible_values pv, variables_atoms va, atoms a,
-                                 variables_atoms g_va, atoms g_a
-        where va.atom = a.id
-        and a.mapping = v_mapping_id
-        and a.name = pv.atom_name
-        and pv.position = va.position
-        and a.LHS_RHS = XHS
-        and g_va.atom = a.id
-        and g_va.atom = g_a.id
-        and g_a.mapping = v_mapping_id
-        and g_a.name = pv.atom_name
-        and (g_va.position = pv.given_pos or pv.given_pos is null)
-        and (g_a.LHS_RHS = XHS or pv.given_pos is null)
-    ) A
-        where connect_by_isleaf = 1
-        connect by nocycle (prior variable = given_variable and prior value = given_value)
-        start with (a.atom_name = 'RELATION')
-    ) )
-    where connect_by_isleaf = 1
-    connect by nocycle (prior root <> root);
-    -- Each tuple in the result set of the inner query 
-    -- is a coherent assignment of the variables of a set of atoms
-    -- with some variables in common. 
-    -- Tuples with the same ROOT represent alternative assignments for lists of related variables
-    -- Tuples with different ROOT represent assignments for non-related variables
-    -- Pick any set of tuples covering all the distinct ROOTS.
-    -- For each set of tuples produce one mapping by assigning the corresponding variables.
-
+           -- each row is a string "var:val/var:val/var:val .... "
+           -- each row is a distinct assignment of variables
+           -- not all teh combinations are possible
+           -- and must be discarded
+                with var_val as (
+                 select distinct pv.value, va.variable
+                    from possible_values pv, variables_atoms va, atoms a,
+                                             variables_atoms g_va, atoms g_a
+                    where va.atom = a.id
+                    and a.mapping = v_mapping_id
+                    and a.name = pv.atom_name
+                    and pv.position = va.position
+                    and a.LHS_RHS = XHS
+                    and g_va.atom = a.id
+                    and g_va.atom = g_a.id
+                    and g_a.mapping = v_mapping_id
+                    and g_a.name = pv.atom_name
+                    and (g_va.position = pv.given_pos or pv.given_pos is null)
+                    and (g_a.LHS_RHS = XHS or pv.given_pos is null)
+        ), tree as ( select distinct sys_connect_by_path(variable||':'||value,'/') as PATH, LEVEL
+            from var_val
+            where connect_by_isleaf = 1
+            connect by nocycle (prior variable < variable) 
+        )
+            select distinct PATH 
+            from tree
+            where "LEVEL" = (select max("LEVEL") from tree);
+    
 begin
         
     open cur_homo;
     loop
     fetch cur_homo into path;
     exit when cur_homo%notfound;
+        --dbms_output.put_line('raw homo: ' || path);
         var_pos := 1;
             select seq_homomorphisms.nextval into v_id_homo from dual;
         loop
@@ -301,7 +294,30 @@ begin
     end loop;
     
     close cur_homo;
-
+    
+        -- all the pairs of different variables of the same
+        -- homomorphism that occur in the same atom
+        -- must be possible values.
+        -- The other homomorphisms are deleted.
+        
+        delete from homomorphisms where id in (
+           select distinct h1.id
+            from homomorphisms h1 join homomorphisms h2 on (h1.id = h2.id and h1.variable < h2.variable)
+            join variables_atoms va1 on (h1.variable = va1.variable) 
+            join variables_atoms va2 on (h2.variable = va2.variable and va1.atom = va2.atom)
+            join atoms a1 on (va1.atom = a1.id) join atoms a2 on (va2.atom = a2.id)
+            where a1.LHS_RHS = XHS and a2.LHS_RHS = XHS
+            and not exists (
+                select *
+                from possible_values pv
+                where pv.atom_name = a1.name
+                and pv.value = h1.value
+                and pv.position = va1.position
+                and pv.given_pos = va2.position
+                and pv.given_value = h2.value)
+        );
+        
+    
 end ALL_POSSIBLE_HOMOMORPHISMS;
 
 
@@ -365,17 +381,21 @@ procedure SHUFFLE_MAPPING_SET (v_mapping_sets_id in varchar2) as
         -- It builds the paths of all the possible
         -- choices for the conditions
         -- of the form "/original_variable_id:condition_from_mapping"
-            select sys_connect_by_path(original_variable ||':'||from_mapping,'/') conditions, mapping from (
-                select distinct orig_var.id original_variable, var.mapping from_mapping, orig_var.mapping
-                from conditions c join variables var on (c.variable = var.id)
-                    join mappings m on (m.id = var.mapping), variables orig_var
-                where 
-                    var.mapping in (select mapping from mapping_sets where id = v_mapping_sets_id)
-                    and orig_var.mapping = m.repair_ref
-                    and c.variable = skolem.variables_from_variables_sk(orig_var.id,m.id)
-            ) 
-            where connect_by_isleaf = 1
-            connect by nocycle (prior original_variable <> original_variable and prior from_mapping <> from_mapping);
+            with A as (
+            select /*+ materialize */ sys_connect_by_path(original_variable ||':'||from_mapping,'/') conditions, mapping, LEVEL from (
+                            select distinct orig_var.id original_variable, var.mapping from_mapping, orig_var.mapping
+                            from conditions c join variables var on (c.variable = var.id)
+                                join mappings m on (m.id = var.mapping), variables orig_var
+                            where 
+                                var.mapping in (select mapping from mapping_sets where id = v_mapping_sets_id)
+                                and orig_var.mapping = m.repair_ref
+                                and c.variable = skolem.variables_from_variables_sk(orig_var.id,m.id)
+                        ) 
+                        where connect_by_isleaf = 1
+                        connect by nocycle (prior original_variable > original_variable and prior from_mapping <> from_mapping)
+            )
+        select distinct CONDITIONS, MAPPING from A
+        where "LEVEL" = (select max("LEVEL") from A);
     
         -- we then iterate along these paths and build a mappign for each
         -- cloning the mapping and taking the conditions from
@@ -420,7 +440,7 @@ begin
                 
                 -- retrieves the value and cond_type of the condition for v_var in v_map
                 -- and creates the new condition
-                -- finding the corresponding ariables with the Skolem function
+                -- finding the corresponding variables with the Skolem function
                 insert into conditions(id, variable, value, cond_type)
                     select seq_conditions.nextval, skolem.variables_from_variables_sk(v_var,v_new_mapping_id), 
                     value, cond_type
@@ -453,6 +473,13 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
     v_mapping_set varchar2(20);
     v_new_pos_mapping_id varchar2(20);
     v_new_neg_mapping_id varchar2(20);
+    
+    v_path varchar2(1000);
+    v_var_val varchar2(200);
+    v_var varchar2(20);
+    v_val varchar2(20);
+    
+    v_var_pos integer;
 
     cursor cur_homo is
     select id, variable, value from homomorphisms
@@ -464,7 +491,7 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
         -- that are are incompatible with
         -- all the assignments of any homomorphism in the RHS
         -- These assignments must be excluded in the negative repairs.
-        select id, variable, value
+        select distinct variable, value
         from homomorphisms h1
         where
             h1.LHS_RHS = 'LHS'
@@ -491,8 +518,9 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
         -- another possible assignment in some homomorphism in the LHS, 
         -- for the same variable,
         -- that is incompatible with all the assignments in the RHS.
-        -- These assignments must be forced with conditions.
-        select id, variable, value
+        -- The right assignments must be forced with conditions.
+        with v as (            
+    select distinct variable, value
         from homomorphisms h1
         where h1.LHS_RHS = 'LHS'
         and not exists ( -- compatible with all the RHS ones i.e. no incompatibilities exist
@@ -514,14 +542,19 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                         and va.variable = h3.variable
                         and a.mapping = v_mapping_id
                 )
-                and not exists ( -- and is incompatible with all the assignments
+                and not exists ( -- and is incompatible with some of the the assignments
                     select *
                     from homomorphisms h4
                     where h4.LHS_RHS = 'RHS'
                     and h3.variable = h4.variable
                     and h3.value = h4.value
                 )
-        );
+        ) -- and exclude the incompatible homomorphisms
+       ), tree as ( select sys_connect_by_path(variable ||':'||value, '/') as PATH, LEVEL
+       from v
+       connect by nocycle (prior variable < variable) )
+       select PATH from tree
+       where "LEVEL" = (select max("LEVEL") from tree);
         
        
         
@@ -546,35 +579,55 @@ begin
     
     -- we create the new mapping set
     select seq_mapping_sets.nextval into v_mapping_set from dual;
-    v_h_id_old := null;
     
     -- %%%% POSITIVE REPAIRS %%%% --
     dbms_output.put_line('Positive repairs');
         
-    v_h_id_old := null;
-     
-    -- create a new mapping
-    -- cloning the original mapping
-    MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_pos_mapping_id);
-    
-    insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_pos_mapping_id);
-            dbms_output.put_line('New mapping ' || v_new_pos_mapping_id || ' added to set ' || v_mapping_set);
-        
+            
+    -- for positive repairs, we create a mapping for each combination of
+    -- assignments (in or)
     open cur_pos_homo;
     loop
-        fetch cur_pos_homo into v_h_id, v_h_var_id, v_h_val;
+    
+        v_path := null;
+        v_var_val := null;
+    
+        fetch cur_pos_homo into v_path;
         exit when cur_pos_homo%notfound;
+            MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_pos_mapping_id);
+            
+            insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_pos_mapping_id);
+            dbms_output.put_line('New mapping ' || v_new_pos_mapping_id || ' added to set ' || v_mapping_set);
+            
+            v_var_pos := 1;
+            --dbms_output.put_line('---->' || v_path);
+            v_var := 'dummy';
+    
+            loop
+                    
+                select regexp_substr(v_path,'\w+:\w+',1,v_var_pos) into v_var_val from dual;
+                exit when v_var_val is null;
+                
+                select regexp_substr(v_var_val,'(\w+)\:(\w+)',1,1,null,1) into v_var from dual;
+                select regexp_substr(v_var_val,'(\w+)\:(\w+)',1,1,null,2) into v_val from dual;
+                
+                dbms_output.put_line('Variable to repair: ' || v_var);            
+                insert into conditions(id, variable, value, cond_type) values
+                    (seq_conditions.nextval, skolem.variables_from_variables_sk(v_var, v_new_pos_mapping_id), v_val, 'EQ');
+                    dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_var, v_new_pos_mapping_id) || '=' || v_val || ' added.');
 
-        dbms_output.put_line('Variable to repair: ' || v_h_var_id);            
-                    insert into conditions(id, variable, value, cond_type) values
-                        (seq_conditions.nextval, skolem.variables_from_variables_sk(v_h_var_id, v_new_pos_mapping_id), v_h_val, 'EQ');
-                        dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_h_var_id, v_new_pos_mapping_id) || '=' || v_h_val || ' added.');
+                v_var_pos := v_var_pos + 1;
         
+            end loop;
+            
+        -- we update the mapping description
+        MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_pos_mapping_id);
+   
     end loop;
     close cur_pos_homo;
     
-    -- we update the mapping description
-    MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_pos_mapping_id);
+    
+
 
     -- %%%% NEGATIVE REPAIRS %%%% --
     dbms_output.put_line('Negative repairs');
@@ -590,7 +643,7 @@ begin
         
     open cur_neg_homo;
     loop
-        fetch cur_neg_homo into v_h_id, v_h_var_id, v_h_val;
+        fetch cur_neg_homo into v_h_var_id, v_h_val;
         exit when cur_neg_homo%notfound;
 
         dbms_output.put_line('Variable to repair: ' || v_h_var_id);            
@@ -606,6 +659,7 @@ begin
     
     -- We now do the shuffling so as to generate all the possible combinations
     -- of conditions
+    commit; -- Commit since there seems to be an Oracle bug, double-reading transactions when WITH is used (like in the suffle).
     dbms_output.put_line('Shuffling');
     SHUFFLE_MAPPING_SET(v_mapping_set);
     
@@ -639,7 +693,7 @@ v_cols_no integer;
         all_tab_columns cols
     where
         a.name = tab.table_name
-        and a.mapping='45'
+        and a.mapping=v_mapping_id
         and ((tab.owner = v_database_source_schema and a.LHS_RHS='LHS') or (tab.owner = v_database_target_schema and a.LHS_RHS='RHS'))
         and ((tab.owner = v_database_source_schema and a.LHS_RHS='LHS') or (tab.owner = v_database_target_schema and a.LHS_RHS='RHS'))
         and cols.table_name = tab.table_name

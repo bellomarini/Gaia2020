@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Saturday-February-20-2016   
+--  File created - Monday-February-22-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Table MAPPING_SETS
@@ -38,4 +38,4 @@
 --------------------------------------------------------
 
   ALTER TABLE "GAIA"."MAPPING_SETS" ADD CONSTRAINT "MAPPING_SETS_MAPPINGS_FK1" FOREIGN KEY ("MAPPING")
-	  REFERENCES "GAIA"."MAPPINGS" ("ID") ENABLE;
+	  REFERENCES "GAIA"."MAPPINGS" ("ID") ON DELETE CASCADE ENABLE;
