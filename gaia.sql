@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Saturday-February-27-2016   
+--  File created - Sunday-February-28-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -262,7 +262,7 @@ procedure SHUFFLE_MAPPING_SET (v_mapping_sets_id in varchar2) as
                         connect by nocycle (prior original_variable > original_variable and prior from_mapping <> from_mapping)
             )
         select distinct CONDITIONS, MAPPING from A
-        where "LEVEL" = (select max("LEVEL") from A);
+        where "LEVEL" = (select max("LEVEL") from A) and regexp_count(conditions,'/') >1; -- to avoid one-variable conditions
     
         -- we then iterate along these paths and build a mappign for each
         -- cloning the mapping and taking the conditions from
