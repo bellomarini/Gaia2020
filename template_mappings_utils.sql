@@ -1,13 +1,11 @@
 --------------------------------------------------------
---  File created - Saturday-February-27-2016   
+--  File created - Sunday-February-28-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body TEMPLATE_MAPPINGS_UTILS
 --------------------------------------------------------
 
   CREATE OR REPLACE PACKAGE BODY "GAIA"."TEMPLATE_MAPPINGS_UTILS" AS
-
-
 
 -- It populates the relation POSSIBLE_VALUES with all the
 -- possible assignments for a given eschema. In other words, it calculates
@@ -55,7 +53,7 @@ begin
 end POPULATE_POSSIBLE_VALUES;
 
 
-procedure ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id in varchar2, XHS in varchar2) as
+procedure ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id in varchar2, XHS in varchar2, v_chosen_eschema in varchar2 := null) as
     path varchar2(200);
     var varchar2(20);
     val varchar2(20);
@@ -64,7 +62,7 @@ procedure ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id in varchar2, XHS in varchar2) 
     v_id_homo varchar2(20);
     
     v_eschema varchar2(20);
-    
+        
 cursor cur_homo is
            -- each row is a string "var:val/var:val/var:val .... "
            -- each row is a distinct assignment of variables
@@ -85,6 +83,20 @@ cursor cur_homo is
                     and g_a.name = pv.atom_name
                     and (g_va.position = pv.given_pos or pv.given_pos is null)
                     and (g_a.LHS_RHS = XHS or pv.given_pos is null)
+                    and not exists ( -- exclude the equal values that are forbidden by the inequalities
+                        select * 
+                        from conditions c
+                        where c.variable = va.variable
+                        and c.cond_type = 'NEQ'
+                        and c.value = pv.value
+                    ) -- exclude the different values that are forbidden by the equalities
+                    and not exists (
+                        select *
+                        from conditions c
+                        where c.variable = va.variable
+                        and c.cond_type = 'EQ'
+                        and c.value <> pv.value
+                    )
         ), tree as ( select distinct sys_connect_by_path(variable||':'||value,'/') as PATH, LEVEL
             from var_val
             where connect_by_isleaf = 1
@@ -97,12 +109,16 @@ cursor cur_homo is
 begin
 
     -- invokes POPULATE_POSSIBLE_VALUES
-    if XHS = 'RHS' then
-        select target_schema into v_eschema
-        from mappings where id = v_mapping_id;
-    elsif XHS = 'LHS' then
-        select source_schema into v_eschema
-        from mappings where id = v_mapping_id;
+    if v_chosen_eschema is null then
+        if XHS = 'RHS' then
+            select target_schema into v_eschema
+            from mappings where id = v_mapping_id;
+        elsif XHS = 'LHS' then
+            select source_schema into v_eschema
+            from mappings where id = v_mapping_id;
+        end if;
+    else
+        v_eschema := v_chosen_eschema;
     end if;
     
     -- calculates all the atomic homomorphisms
@@ -133,6 +149,7 @@ begin
         -- homomorphism that occur in the same atom
         -- must be possible values.
         -- The other homomorphisms are deleted.
+        -- By definition of homomorphism
         
         delete from homomorphisms where id in (
            select distinct h1.id
@@ -150,9 +167,124 @@ begin
                 and pv.given_pos = va2.position
                 and pv.given_value = h2.value)
         );
-        
-    
 end ALL_POSSIBLE_HOMOMORPHISMS;
+
+function EXTENSION_TEST(v_mapping_id1 in varchar2, v_mapping_id2 varchar2) return boolean as
+
+    v_source_eschema1 varchar2(20);
+    v_target_eschema1 varchar2(20);
+    
+    v_missing_tuples integer := 0;
+    v_incorrect_tuples integer := 0;
+    
+    v_outcome boolean;
+    
+    
+   
+   -- it builds a table evaluating
+   -- the correctness and the completeness
+   -- of the facts that would be calculated
+    cursor cur_eval_results is
+            with P as (
+            select 
+            distinct a.id as atom_id, a.name as atom_name, va.position, h.value
+            from atoms a join variables_atoms va on (a.id = va.atom) left outer join homomorphisms h on (va.variable = h.variable)
+            where a.mapping = v_mapping_id2
+            and a.LHS_RHS = 'RHS'
+            and (h.LHS_RHS = 'LHS' or h.LHS_RHS is null)
+        ), PV as (
+            select atom_name, to_number(position) as position, value, to_number(given_pos) as given_pos, given_value
+            from possible_values
+        )
+        Select 
+            case when atom_name is not null and r_atom_name is null then 'N' else 'Y' end as CORR,
+            case when atom_name is null and r_atom_name is not null then 'N' else 'Y' end as COMPL,
+            R.*
+            from 
+        (
+            select CF.ATOM_NAME, CF.POSITION, CF.VALUE, CF.GIVEN_POS, CF.GIVEN_VALUE, 
+            RF.ATOM_NAME R_ATOM_NAME, RF.POSITION R_POSITION, RF.VALUE R_VALUE, RF.GIVEN_POS R_GIVEN_POS, 
+            RF.GIVEN_VALUE R_GIVEN_VALUE from (
+            -- calculated facts
+                select p1.atom_name, to_number(p1.position) as position, p1.value, to_number(p2.position) given_pos, p2.value given_value 
+                from P p1 left outer join P p2 on (p1.atom_id = p2.atom_id and p1.position <> p2.position)
+            ) CF full outer join
+                -- real facts
+                (select * from PV) RF
+                on ( (CF.ATOM_NAME = RF.ATOM_NAME)
+                and (CF.position = RF.position)
+                and (nvl(nvl(cf.value,rf.value),'X') = nvl(rf.value,'X'))
+                and (nvl(nvl(cf.given_pos,rf.given_pos),0) = nvl(rf.given_pos,0))
+                and (nvl(nvl(cf.given_value,rf.given_value),'X') = nvl(rf.given_value,'X') )
+                )
+        ) R;
+    
+        v_cur_eval_results cur_eval_results%ROWTYPE;
+
+    
+    
+    
+begin
+    
+    
+    -- we read the source e-schema of the first template mapping
+    select source_schema into v_source_eschema1
+    from mappings
+    where id = v_mapping_id1;
+    
+    -- we read the target e-schema of the second template mapping
+    select target_schema into v_target_eschema1
+    from mappings
+    where id = v_mapping_id1;
+    
+    delete from homomorphisms;
+    
+    -- we calculate all the possible homomorphisms h for the LHS of the second 
+    -- template mapping to the source e-schema of the first
+    -- h : LHS2 -> source_eschema1
+    all_possible_homomorphisms(v_mapping_id2, 'LHS', v_source_eschema1);
+    
+    -- we calculate the the facts generated by all of these homomorphisms
+    -- and verify that they exactly coincide with the possible values
+    -- (which we calculate)
+    
+    populate_possible_values(v_target_eschema1);
+    
+    open cur_eval_results;
+    loop
+    fetch cur_eval_results into v_cur_eval_results;
+    exit when cur_eval_results%notfound;
+        if v_cur_eval_results.corr = 'N' then
+            v_incorrect_tuples := v_incorrect_tuples + 1;
+            dbms_output.put_line('Incorrect generated tuple: ' || v_cur_eval_results.atom_name || ',' || v_cur_eval_results.position  || ',' ||  v_cur_eval_results.value  || ',' ||  v_cur_eval_results.given_pos  || ',' ||  v_cur_eval_results.given_value
+                        || v_cur_eval_results.r_atom_name || ',' || v_cur_eval_results.r_position  || ',' ||  v_cur_eval_results.r_value  || ',' ||  v_cur_eval_results.r_given_pos  || ',' ||  v_cur_eval_results.r_given_value);
+            
+        elsif v_cur_eval_results.compl = 'N' then
+            v_missing_tuples := v_missing_tuples + 1;
+            dbms_output.put_line('Missing tuple: ' || v_cur_eval_results.atom_name || ',' || v_cur_eval_results.position  || ',' ||  v_cur_eval_results.value  || ',' ||  v_cur_eval_results.given_pos  || ',' ||  v_cur_eval_results.given_value
+                                    || v_cur_eval_results.r_atom_name || ',' || v_cur_eval_results.r_position  || ',' ||  v_cur_eval_results.r_value  || ',' ||  v_cur_eval_results.r_given_pos  || ',' ||  v_cur_eval_results.r_given_value);       
+        end if;
+    end loop;
+    
+    v_outcome := true;
+    
+    if v_missing_tuples > 0 then
+        dbms_output.put_line('Template mapping ' || v_mapping_id1 || ' does not extend to ' || v_mapping_id2 || ' because the latter does not produce some needed tuples.');
+        v_outcome := false;
+    end if;
+    if v_incorrect_tuples > 0 then
+        dbms_output.put_line('Template mapping ' || v_mapping_id1 || ' does not extend to ' || v_mapping_id2 || ' because the latter produces some undesired tuples.');
+        v_outcome := false;
+    end if;
+    
+    if v_outcome then
+                dbms_output.put_line('Template mapping ' || v_mapping_id1 || ' extends to ' || v_mapping_id2 || '.');
+    end if;
+    
+    return v_outcome;
+    
+end extension_test;
+
 
 
 END TEMPLATE_MAPPINGS_UTILS;
