@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Sunday-February-28-2016   
+--  File created - Monday-February-29-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body TEMPLATE_MAPPINGS_UTILS
@@ -284,6 +284,47 @@ begin
     return v_outcome;
     
 end extension_test;
+
+procedure MERGE_TEMPLATE_MAPPINGS(v_mapping_id1 in varchar2, v_mapping_id2 in varchar2, v_mapping_sets_id out varchar2) as
+    
+    v_tm1_to_tm2 boolean := false;
+    v_tm2_to_tm1 boolean := false;
+    
+    v_new_mapping_id varchar2(20);
+    
+begin
+    
+    -- we verify which of the two extends to the other
+    v_tm1_to_tm2 := extension_test(v_mapping_id1,v_mapping_id2);
+    v_tm2_to_tm1 := extension_test(v_mapping_id2,v_mapping_id1);
+    
+    -- if none extends to the other, then return null
+    if not v_tm1_to_tm2 and not v_tm2_to_tm1 then
+        v_mapping_sets_id := null;
+    else
+        -- create a mapping set
+        select seq_mapping_sets.nextval into v_mapping_sets_id from dual;
+    
+        if v_tm1_to_tm2 then
+            dbms_output.put_line(v_mapping_id1 || ' extends to ' || v_mapping_id2);
+            -- tm2 must be in the set, then clone it
+            mappings_utils.clone_mapping(v_mapping_id2, v_new_mapping_id);
+            -- and insert in the set
+            insert into mapping_sets(id, mapping) values (v_mapping_sets_id, v_new_mapping_id);
+        end if;
+        
+        if v_tm2_to_tm1 then
+            dbms_output.put_line(v_mapping_id2 || ' extends to ' || v_mapping_id1);
+            -- tm1 must be in the set, then clone it
+            mappings_utils.clone_mapping(v_mapping_id1, v_new_mapping_id);
+            -- and insert in the set
+            insert into mapping_sets(id, mapping) values (v_mapping_sets_id, v_new_mapping_id);
+        end if;
+    
+    end if;
+    
+end MERGE_TEMPLATE_MAPPINGS;
+
 
 
 
