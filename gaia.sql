@@ -347,6 +347,31 @@ begin
             group by m.id, a.name, va.position, va2.position, va2.variable, c.value
             having count(*)>1)
         );
+        
+        -- if there are shuffled mappings without any equality condition
+        -- or without any equality condition, then they must be deleted
+        -- as already present.
+        delete from mappings where id in (
+        select m.id
+            from mappings m join mapping_sets ms on (m.id = ms.mapping)
+            where ms.id = v_mapping_sets_id 
+            and m.type = 'H'
+            and (
+                (not exists ( -- there are no equality conditions
+                    select *
+                    from conditions c join variables v on (c.variable = v.id)
+                    where c.variable = v.id
+                    and c.cond_type = 'EQ'
+                    and v.mapping = m.id
+                )) or
+                (not exists ( -- there are no inequality conditions
+                select *
+                from conditions c join variables v on (c.variable = v.id)
+                where c.variable = v.id
+                and c.cond_type = 'NEQ'
+                and v.mapping = m.id
+                )))
+            );
                 
     end loop;
     
