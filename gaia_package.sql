@@ -28,6 +28,25 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
 -- Then all the c1 and c2 are added to the output set
 procedure MERGE_MAPPING_SETS (v_mapping_set_id1 in varchar2, v_mapping_set_id2 in varchar2, v_mapping_set_id out varchar2);
 
+-- It takes as input a mapping set and produces a new mapping set with
+-- all the possible variants (including the original ones)
+procedure GENERATE_VARIANTS (v_mapping_set_id in varchar2, v_new_mapping_set out varchar2);
+
+-- We take as input a list schema mappings (separated by ";"), all from S to T and do the following:
+-- 1)
+-- schema mapping 1 --> canonical mapping 1 --> set 1 of repaired canonical mappings
+-- schema mapping 2 --> canonical mapping 2 --> set 2 of repaired canonical mappings
+-- ...
+-- schema mapping N --> canonical mapping N --> set N of repaired canonical mappings
+
+-- 2)
+-- set 1 +merge+ set 2 +merge+ ... +merge+ setN --> set M of merged canonical template mappings
+
+-- 3)
+-- generate_variants(set M) --> set Q of the possible variants
+-- set M is the final output
+procedure encode(v_mapping_list in clob, v_source_schema in varchar2, v_target_schema in varchar2, v_mapping_set out varchar2);
+
 
 END GAIA;
 

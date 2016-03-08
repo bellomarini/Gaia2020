@@ -1,6 +1,28 @@
 Gaia 2020
 =========
 
+
+GAIA encoding
+-------------
+
+GAIA.encode
+
+We take as input a list schema mappings, all from S to T and do the following:
+
+1)
+schema mapping 1 --> canonical mapping 1 --> set 1 of repaired canonical mappings
+schema mapping 2 --> canonical mapping 2 --> set 2 of repaired canonical mappings
+...
+schema mapping N --> canonical mapping N --> set N of repaired canonical mappings 
+
+2)
+set 1 +merge+ set 2 +merge+ ... +merge+ setN --> set M of merged canonical template mappings
+
+3)
+generate_variants(set M) --> set Q of the possible variants 
+
+set M is the final output
+
 The project includes libraries for:
 -----------------------------------
 
