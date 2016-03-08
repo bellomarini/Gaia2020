@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Monday-February-29-2016   
+--  File created - Tuesday-March-08-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body TEMPLATE_MAPPINGS_UTILS
@@ -256,13 +256,13 @@ begin
     exit when cur_eval_results%notfound;
         if v_cur_eval_results.corr = 'N' then
             v_incorrect_tuples := v_incorrect_tuples + 1;
-            dbms_output.put_line('Incorrect generated tuple: ' || v_cur_eval_results.atom_name || ',' || v_cur_eval_results.position  || ',' ||  v_cur_eval_results.value  || ',' ||  v_cur_eval_results.given_pos  || ',' ||  v_cur_eval_results.given_value
-                        || v_cur_eval_results.r_atom_name || ',' || v_cur_eval_results.r_position  || ',' ||  v_cur_eval_results.r_value  || ',' ||  v_cur_eval_results.r_given_pos  || ',' ||  v_cur_eval_results.r_given_value);
+            --dbms_output.put_line('Incorrect generated tuple: ' || v_cur_eval_results.atom_name || ',' || v_cur_eval_results.position  || ',' ||  v_cur_eval_results.value  || ',' ||  v_cur_eval_results.given_pos  || ',' ||  v_cur_eval_results.given_value
+            --            || v_cur_eval_results.r_atom_name || ',' || v_cur_eval_results.r_position  || ',' ||  v_cur_eval_results.r_value  || ',' ||  v_cur_eval_results.r_given_pos  || ',' ||  v_cur_eval_results.r_given_value);
             
         elsif v_cur_eval_results.compl = 'N' then
             v_missing_tuples := v_missing_tuples + 1;
-            dbms_output.put_line('Missing tuple: ' || v_cur_eval_results.atom_name || ',' || v_cur_eval_results.position  || ',' ||  v_cur_eval_results.value  || ',' ||  v_cur_eval_results.given_pos  || ',' ||  v_cur_eval_results.given_value
-                                    || v_cur_eval_results.r_atom_name || ',' || v_cur_eval_results.r_position  || ',' ||  v_cur_eval_results.r_value  || ',' ||  v_cur_eval_results.r_given_pos  || ',' ||  v_cur_eval_results.r_given_value);       
+            --dbms_output.put_line('Missing tuple: ' || v_cur_eval_results.atom_name || ',' || v_cur_eval_results.position  || ',' ||  v_cur_eval_results.value  || ',' ||  v_cur_eval_results.given_pos  || ',' ||  v_cur_eval_results.given_value
+              --                      || v_cur_eval_results.r_atom_name || ',' || v_cur_eval_results.r_position  || ',' ||  v_cur_eval_results.r_value  || ',' ||  v_cur_eval_results.r_given_pos  || ',' ||  v_cur_eval_results.r_given_value);       
         end if;
     end loop;
     

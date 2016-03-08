@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Monday-February-29-2016   
+--  File created - Tuesday-March-08-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -781,12 +781,60 @@ begin
         -- selezionare la variabile per posizione
         -- selezionare l'attributo dalla variabile
   
-
-
-
 end GENERATE_ESCHEMAS;
 
 
+procedure MERGE_MAPPING_SETS (v_mapping_set_id1 in varchar2, v_mapping_set_id2 in varchar2, v_mapping_set_id out varchar2) as
+
+    v_mapping_1 varchar2(20);
+    v_mapping_2 varchar2(20);
+    
+    -- all the pairs of mappings in the first
+    -- and in the second
+    -- Then we iterate through them and add to the final set
+    -- only the mappings (M1) such that M2 extends to M1.
+    -- In this way we obtain the merged set
+   cursor cur_all_pairs is 
+    select m1.mapping M1, m2.mapping M2
+    from mapping_sets m1, mapping_sets m2
+    where m1.id = v_mapping_set_id1
+    and m2.id = v_mapping_set_id2
+    union
+    select m2.mapping, m1.mapping
+    from mapping_sets m1, mapping_sets m2
+    where m1.id = v_mapping_set_id1
+    and m2.id = v_mapping_set_id2;
+    
+    v_mapping_sets_id varchar2(20);
+
+    
+begin
+
+    -- mapping set id
+    select seq_mapping_sets.nextval into v_mapping_sets_id from dual;
+
+    dbms_output.put_line('Merging sets ' || v_mapping_set_id1 || ' and ' || v_mapping_set_id2 || ' into set ' || v_mapping_sets_id);
+
+    open cur_all_pairs;
+    loop    
+    fetch cur_all_pairs into v_mapping_1, v_mapping_2;
+    exit when cur_all_pairs%notfound;
+    
+    -- adds the mappings to the set when the merge condition holds
+    if template_mappings_utils.extension_test(v_mapping_1, v_mapping_2) then
+        begin
+        insert into mapping_sets(id, mapping) values (v_mapping_sets_id, v_mapping_2);
+        exception 
+            when DUP_VAL_ON_INDEX then
+                null; -- just skip, it has already been inserted (it is a set)
+        end;
+        --dbms_output.put_line('Mapping ' || v_mapping_2 || ' added');
+    end if;
+    end loop;
+    close cur_all_pairs;
+
+    
+END MERGE_MAPPING_SETS;
 
 END GAIA;
 
