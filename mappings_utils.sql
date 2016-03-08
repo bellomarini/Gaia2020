@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Friday-February-19-2016   
+--  File created - Tuesday-March-08-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body MAPPINGS_UTILS
@@ -237,7 +237,7 @@ procedure CLONE_MAPPING(v_mapping_id in varchar2, v_new_mapping_id out varchar2)
 begin
 
     select seq_mappings.nextval into v_new_mapping_id from dual;
-    dbms_output.put_line('Cloning into mapping ' || v_new_mapping_id);
+    --dbms_output.put_line('Cloning into mapping ' || v_new_mapping_id);
 
     -- mapping
     insert into mappings (id, description, source_schema, target_schema, type, repair_ref)
