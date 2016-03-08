@@ -51,15 +51,13 @@ Organization of the repository:
 TODO
 ----
 
-  SEARCH
-  ------
+* SEARCH
   - given a source schema, propose all the applicable template schema mappings
   - given a target schema, propose all the applicable template schema mappings
   - given a source and a target schema, propose all the applicable template schema mappings
   
 
-  S-D PROCEDURE
-  ------
+* S-D PROCEDURE
   - given a database schema, generate the corresponding e-schema
   - given a template schema mapping and an e-schema, generate the schema mapping for the database schema
   
