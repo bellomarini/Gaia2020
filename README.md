@@ -56,13 +56,13 @@ TODO
   - given a source schema, propose all the applicable template schema mappings
   - given a target schema, propose all the applicable template schema mappings
   - given a source and a target schema, propose all the applicable template schema mappings
-  ------
+  
 
   S-D PROCEDURE
   ------
   - given a database schema, generate the corresponding e-schema
   - given a template schema mapping and an e-schema, generate the schema mapping for the database schema
-  ------
+  
 
 Structure of a file \<example\>.sql
 -----------------------------------
