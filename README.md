@@ -9,16 +9,19 @@ GAIA.encode
 
 We take as input a list of semicolon-separated schema mappings, all from S to T and do the following:
 
-1)
+1-
+--
 schema mapping 1 --> canonical mapping 1 --> set 1 of repaired canonical mappings
 schema mapping 2 --> canonical mapping 2 --> set 2 of repaired canonical mappings
 ...
 schema mapping N --> canonical mapping N --> set N of repaired canonical mappings 
 
-2)
+2-
+--
 set 1 +merge+ set 2 +merge+ ... +merge+ setN --> set M of merged canonical template mappings
 
-3)
+3-
+--
 generate_variants(set M) --> set Q of the possible variants 
 
 set M is the final output
@@ -51,17 +54,19 @@ Organization of the repository:
 TODO
 ----
 
-* SEARCH
+* Search
   - given a source schema, propose all the applicable template schema mappings
   - given a target schema, propose all the applicable template schema mappings
   - given a source and a target schema, propose all the applicable template schema mappings
   
 
-* S-D PROCEDURE
+* S-D procedure
   - given a database schema, generate the corresponding e-schema
   - given a template schema mapping and an e-schema, generate the schema mapping for the database schema
-  
 
+* Functions and constants
+  - support for constants and function in input schema mappings
+  
 Structure of a file \<example\>.sql
 -----------------------------------
 
