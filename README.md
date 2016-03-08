@@ -7,7 +7,7 @@ GAIA encoding
 
 GAIA.encode
 
-We take as input a list schema mappings, all from S to T and do the following:
+We take as input a list of semicolon-separated schema mappings, all from S to T and do the following:
 
 1)
 schema mapping 1 --> canonical mapping 1 --> set 1 of repaired canonical mappings
@@ -36,13 +36,8 @@ The project includes libraries for:
   - GAIA.GET\_REPAIRED\_TEMPLATE\_MAPPINGS : given a canonical template mapping, we generate the set of all the possible repairs with equalities and inequalities to make it correct with respect to its e-schemas
   - GAIA.MERGE\_MAPPING\_SETS : we merge two sets of template mappings
   - GAIA.GENERATE\_VARIANTS : we generate second-level variants
+  - GAIA.ENCODE : encodes a given schema mapping
  
-  - merging two canonical template schema mappings into a set of template mappings
-  - given a set of canonical template schema mapping, generate all the variants
-  - given a source schema, propose all the applicable template schema mappings
-  - given a target schema, propose all the applicable template schema mappings
-  - given a template schema mapping, generate the corresponding schema mapping
-  
 Organization of the repository:
 -------------------------------
 
@@ -50,24 +45,29 @@ Organization of the repository:
     - \<package\>_package.sql is the spec of package <package>
     - \<package\>.sql is the body of \<package\>
   - DDL/ : contains the DDL scripts to create the relations of Gaia metamodel and the sequences
-  - EXAMPLES/ : contains the examples
+  - EXAMPLES/ : contains the examples, in files \<example\>.sql
+  - EXAMPLES/DDL : contains the DDL to create database source and target schemas
+
+TODO
+----
+
+  SEARCH
+  ------
+  - given a source schema, propose all the applicable template schema mappings
+  - given a target schema, propose all the applicable template schema mappings
+  - given a source and a target schema, propose all the applicable template schema mappings
+  
+  S-D PROCEDURE
+  -------------
+  - given a database schema, generate the corresponding e-schema
+  - given a template schema mapping and an e-schema, generate the schema mapping for the database schema
+
 
 Structure of a file \<example\>.sql
----------------------------------
+-----------------------------------
 
-- DDL to create the source schema (to be run as admin)
-  - e.g. CREATE USER ...
-  - CREATE TABLE ( ... )
-  - CREATE UNIQUE INDEX ...
-  - ALTER TABLE .. ADD CONSTRAINT ...
 
-- DDL to create the source schema (to be run as admin)
-  - e.g. CREATE USER ...
-  - CREATE TABLE ( ... )
-  - CREATE UNIQUE INDEX ...
-  - ALTER TABLE .. ADD CONSTRAINT ...
 
-- set of mappings (with the following syntax):
-  - INPUT\_TABLE(a,x,y),CHILD\_TABLE(y,z)->OUTPUT_TABLE(a,z)
+
 
   
