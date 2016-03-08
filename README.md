@@ -78,6 +78,7 @@ Structure of a file \<example\>.sql
 
 This is the structure of an example file for testing the encoding. 
 
+```
 -- DESCRIPTION OF THE TEST:
 -- Encoding of a simple mapping that needs the repair.
 DECLARE
@@ -91,6 +92,7 @@ DECLARE
 BEGIN
     GAIA.encode(V_MAPPING_LIST,V_SOURCE_SCHEMA,V_TARGET_SCHEMA,v_mapping_set_out);
 END;
+'''
 
 
 
