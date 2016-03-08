@@ -92,7 +92,6 @@ DECLARE
 BEGIN
     GAIA.encode(V_MAPPING_LIST,V_SOURCE_SCHEMA,V_TARGET_SCHEMA,v_mapping_set_out);
 END;
-'''
 
 
 
