@@ -47,7 +47,7 @@ The project includes libraries for:
   - GAIA.GENERATE\_VARIANTS : we generate second-level variants
   - GAIA.ENCODE : encodes a given schema mapping
  
-Organization of the repository:
+Organization of the repository
 -------------------------------
 
   - / : contains the source code.
@@ -76,7 +76,7 @@ TODO
 Structure of a file \<example\>.sql
 -----------------------------------
 
-This is the structure of an example file for testing the encoding. 
+This is the structure of an example file for testing the encoding.
 
 ```
 -- DESCRIPTION OF THE TEST:
