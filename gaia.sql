@@ -558,6 +558,9 @@ begin
             
         -- we update the mapping description
         MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_pos_mapping_id);
+        
+        -- to return the output
+        v_mapping_set_id := v_mapping_set;
    
     end loop;
     close cur_pos_homo;
@@ -1006,6 +1009,7 @@ begin
         if v_prev_mapping_set_id is null then
             v_prev_mapping_set_id := v_mapping_set_id;
         else -- else we merge with the previous
+            dbms_output.put_line('     GAIA: MERGING THE GENERATED SET');        
             merge_mapping_sets(v_prev_mapping_set_id, v_mapping_set_id, v_new_mapping_set_id);
             v_prev_mapping_set_id := v_new_mapping_set_id;
         end if;
@@ -1018,7 +1022,7 @@ begin
     dbms_output.put_line('     GAIA: GENERATE THE SECOND-LEVEL VARIANTS');        
 
     generate_variants(v_prev_mapping_set_id, v_mapping_set_id);
-    
+    v_mapping_set := v_mapping_set_id;
     
 end encode;
 
