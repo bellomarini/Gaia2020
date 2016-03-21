@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Tuesday-March-08-2016   
+--  File created - Monday-March-21-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body MAPPINGS_UTILS
@@ -280,7 +280,7 @@ begin
 end CLONE_MAPPING;
 
 procedure UPDATE_DESCRIPTION(v_mapping_id in varchar2) as
-    v_mapping_string varchar2(400);
+    v_mapping_string varchar2(800);
 begin
         MAPPINGS_UTILS.MAPPING_TO_STRING_BY_ID(v_mapping_id, v_mapping_string);
         update mappings
