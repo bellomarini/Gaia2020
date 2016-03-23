@@ -46,6 +46,23 @@ The project includes libraries for:
   - GAIA.MERGE\_MAPPING\_SETS : we merge two sets of template mappings
   - GAIA.GENERATE\_VARIANTS : we generate second-level variants
   - GAIA.ENCODE : encodes a given schema mapping
+
+Types of mappings
+-----------------
+
+These are the types of mappings we handle in the MAPPINGS table:
+
+- S : a usual schema mapping
+- C : a canonical template mapping
+- P : a template mapping with equalities (first-level variant obtained with a positive repair)
+- N : a template mapping with inequalities (first-level variant obtained with a negative repair)
+- H : a template mapping with equalities and inequalities (first-level variant obtained with a hybrid repair)
+- PV : a template mapping generated as a second-level variant of a positive repair
+- NV : a template mapping generated as a second-level variant of a negative repair
+- HV : a template mapping generated as a second-level variant of a hybrid repair
+
+The final set, output of the encoding, contains: P, N, H, PV, NV, HV mappings.
+
  
 Organization of the repository
 -------------------------------
@@ -65,7 +82,6 @@ TODO
   - given a target schema, propose all the applicable template schema mappings
   - given a source and a target schema, propose all the applicable template schema mappings
   
-
 * S-D procedure
   - given a database schema, generate the corresponding e-schema
   - given a template schema mapping and an e-schema, generate the schema mapping for the database schema
@@ -92,8 +108,18 @@ DECLARE
 BEGIN
     GAIA.encode(V_MAPPING_LIST,V_SOURCE_SCHEMA,V_TARGET_SCHEMA,v_mapping_set_out);
 END;
+```
 
+Launch this block and wait for the completion.
+In the output log GAIA shows the id of final mapping sets it has created.
+To inspect the generating mapping run this query:
 
-
+```
+select *
+from mappings
+where id in (
+  select mapping
+  from mapping_sets
+  where id = <final mapping set id>```
 
   
