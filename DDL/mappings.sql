@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Monday-February-15-2016   
+--  File created - Tuesday-March-22-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Table MAPPINGS
@@ -7,7 +7,7 @@
 
   CREATE TABLE "GAIA"."MAPPINGS" 
    (	"ID" VARCHAR2(20 BYTE), 
-	"DESCRIPTION" VARCHAR2(300 BYTE), 
+	"DESCRIPTION" VARCHAR2(1000 BYTE), 
 	"SOURCE_SCHEMA" VARCHAR2(20 BYTE), 
 	"TARGET_SCHEMA" VARCHAR2(20 BYTE), 
 	"TYPE" VARCHAR2(1 BYTE) DEFAULT 'S', 

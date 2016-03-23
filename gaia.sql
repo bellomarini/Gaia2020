@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Tuesday-March-08-2016   
+--  File created - Wednesday-March-23-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -248,6 +248,8 @@ procedure SHUFFLE_MAPPING_SET (v_mapping_sets_id in varchar2) as
         -- It builds the paths of all the possible
         -- choices for the conditions
         -- of the form "/original_variable_id:condition_from_mapping"
+        -- We recurse the join by finding all the variables, no matter what mapping
+        -- they come from
             with A as (
             select /*+ materialize */ sys_connect_by_path(original_variable ||':'||from_mapping,'/') conditions, mapping, LEVEL from (
                             select distinct orig_var.id original_variable, var.mapping from_mapping, orig_var.mapping
@@ -259,7 +261,7 @@ procedure SHUFFLE_MAPPING_SET (v_mapping_sets_id in varchar2) as
                                 and c.variable = skolem.variables_from_variables_sk(orig_var.id,m.id)
                         ) 
                         where connect_by_isleaf = 1
-                        connect by nocycle (prior original_variable > original_variable and prior from_mapping <> from_mapping)
+                        connect by nocycle (prior original_variable > original_variable)
             )
         select distinct CONDITIONS, MAPPING from A
         where "LEVEL" = (select max("LEVEL") from A) and regexp_count(conditions,'/') >1; -- to avoid one-variable conditions
@@ -333,6 +335,9 @@ begin
         delete from mappings 
         where id in (
             select mapping from (
+            -- we search when the same value is taken by two variables
+            -- in the same position of the same atom
+            -- given the same other variables
             select m.id mapping, a.name atom, va.position, va2.position given_pos, va2.variable given_variable, c.value, count(*)
             from
                 mappings m join mapping_sets ms on (m.id = ms.mapping)
@@ -347,6 +352,103 @@ begin
             group by m.id, a.name, va.position, va2.position, va2.variable, c.value
             having count(*)>1)
         );
+        
+        -- We should also remove the mappings where different variables take the same
+        -- value as a consequence of inequality conditions
+        -- We may have taken two inequality conditions that allow
+        -- the same value by excluding exactly the same others
+        -- so they would also miss the same values.
+        delete from mappings
+        where id in (
+            select mapping from (
+        select mapping, atom, position, given_pos, given_variable, cond, count(*)
+           from (
+               select mapping, variable, atom, position, given_pos, given_variable, listagg(value,',') within group (order by value) as cond
+               from (
+                select distinct m.id mapping, v.id variable, a.name atom, va.position, va2.position given_pos, va2.variable given_variable, c.value
+                from
+                    mappings m join mapping_sets ms on (m.id = ms.mapping)
+                    join variables v on (v.mapping = m.id)
+                    
+                    join variables_atoms va on (va.variable = v.id)
+                    join atoms a on (va.atom = a.id)
+                    
+                    join conditions c on (c.variable = v.id and c.cond_type = 'NEQ')
+                    
+                    join variables_atoms va2 on (va2.atom = va.atom and va2.variable <> va.variable)
+                    
+                where ms.id = v_mapping_sets_id
+                and m.type = 'H' -- shuffled
+                )
+                group by mapping, variable, atom, position, given_pos, given_variable
+        ) group by mapping, atom, position, given_pos, given_variable, cond
+        having count(*)>1
+        ));
+        
+        -- We now should remove the mappings that assign the same value twice
+        -- as the result of a combination equalities and inequalities,
+        -- i.e. there is an inequality that allows one possibility and
+        -- the same possibility is explicitly bound by an equality
+        delete from mappings where id in (
+            select mapping from (
+        with NEQ AS (
+                    select distinct m.id mapping, v.id variable, a.name atom, va.position, va2.position given_pos, va2.variable given_variable, c.value
+                    from
+                        mappings m join mapping_sets ms on (m.id = ms.mapping)
+                        join variables v on (v.mapping = m.id)
+                        
+                        join variables_atoms va on (va.variable = v.id)
+                        join atoms a on (va.atom = a.id)
+                        
+                        join conditions c on (c.variable = v.id and c.cond_type = 'NEQ')
+                        
+                        join variables_atoms va2 on (va2.atom = va.atom and va2.variable <> va.variable)
+                        
+                    where ms.id = v_mapping_sets_id
+                    and m.type = 'H' -- shuffled
+                ), EQ AS (
+                select distinct m.id mapping, v.id variable, a.name atom, va.position, va2.position given_pos, va2.variable given_variable, c.value
+                    from
+                        mappings m join mapping_sets ms on (m.id = ms.mapping)
+                        join variables v on (v.mapping = m.id)
+                        
+                        join variables_atoms va on (va.variable = v.id)
+                        join atoms a on (va.atom = a.id)
+                        
+                        join conditions c on (c.variable = v.id and c.cond_type = 'EQ')
+                        
+                        join variables_atoms va2 on (va2.atom = va.atom and va2.variable <> va.variable)
+                        
+                    where ms.id = v_mapping_sets_id
+                    and m.type = 'H' -- shuffled
+                )
+                select *
+                from EQ -- there is an equality
+                        -- such that there is a compatible inequality (i.e. for the same atom name, pos, given pos)
+                where exists (
+                    select *
+                    from NEQ
+                    where NEQ.mapping = EQ.mapping
+                    and NEQ.atom = EQ.atom
+                    and NEQ.position = EQ.position
+                    and NEQ.given_pos = EQ.given_pos
+                    and NEQ.given_variable = EQ.given_variable
+                    -- but this is an inequality that allows the same value (by not excluding it)
+                    -- this means that the two atoms bind to the same facts and so
+                    -- we miss something
+                    and not exists ( 
+                        select *
+                        from NEQ n1
+                        where n1.variable = NEQ.variable
+                        and n1.mapping = NEQ.mapping
+                        and n1.atom = NEQ.atom
+                        and n1.position = NEQ.position
+                        and n1.given_pos = NEQ.given_pos
+                        and n1.given_variable = NEQ.given_variable
+                        and n1.value = EQ.value
+                    )
+                )));
+        
         
         -- if there are shuffled mappings without any equality condition
         -- or without any equality condition, then they must be deleted
@@ -399,36 +501,121 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
     v_val varchar2(20);
     
     v_var_pos integer;
+    v_var_neg integer;
 
     cursor cur_homo is
     select id, variable, value from homomorphisms
     order by id, variable;
         
     cursor cur_neg_homo is
+        -- we calculate the positive repairs
+        -- and join them with themselves for the same variable, but different values
+        -- for the unwanted "correct" combinations (mappings need
+        -- not be in normal form)
+        -- then we calculate the union with the unwanted homomorphisms
+        with v as (            
+            select distinct h1.id, variable, value
+            from homomorphisms h1
+            where h1.LHS_RHS = 'LHS'
+            and h1.variable in ( -- assignments in the LHS of variables appearing also in the RHS
+                select variable 
+                from variables_atoms va join atoms a on (va.atom = a.id)
+                where a.LHS_RHS = 'RHS'
+            ) and  exists ( -- compatible with at least one assignments
+                select *
+                from homomorphisms h2
+                where h2.variable = h1.variable
+                and h2.value = h1.value
+                and h2.LHS_RHS = 'RHS' )
+                            -- but there are other assignments for the same variable
+                            -- that are incompatible
+            and exists (
+                select *
+                from homomorphisms h3
+                where h3.variable = h1.variable
+                and h3.id <> h1.id 
+                            -- for which there are no compatible RHS 
+                and not exists (
+                    select *
+                    from homomorphisms h4
+                    where h4.variable = h3.variable
+                    and h4.value = h3.value
+                    and h4.LHS_RHS = 'RHS'
+                )
+                            
+            ) 
+        -- and exclude the incompatible homomorphisms
         -- We individuate the assignments in the
         -- homomorphsism in the LHS
         -- that are are incompatible with
         -- all the assignments of any homomorphism in the RHS
         -- These assignments must be excluded in the negative repairs.
-        select distinct variable, value
-        from homomorphisms h1
-        where
-            h1.LHS_RHS = 'LHS'
-        and exists ( -- the variable appears in the RHS
-            select * 
-            from variables_atoms va join atoms a on (va.atom = a.id)
-            where 
-                a.LHS_RHS = 'RHS'
-                and va.variable = h1.variable
-                and a.mapping = v_mapping_id
-        )                
-        and not exists ( -- a compatible assignment does not exist in any homomorphism
-            select *
-            from homomorphisms h2
-            where h2.LHS_RHS = 'RHS'
-            and h1.variable = h2.variable
-            and h1.value = h2.value);
-            
+               ), w as (
+               select id, variable, value from (
+               select distinct id, variable, value, count(value) over (partition by id) as var_no from v
+                  where id not in (
+                        -- exclude all the homomorphisms that
+                        -- produce twice the same fact
+                                select id from (
+                                -- counts the assignment of the same value for a given atom, position, given value in a given pos
+                                select distinct h2.id ,a.name, va.position, h2.value, va3.position, h3.value,  count(distinct h2.variable)
+                                from homomorphisms h2 join variables_atoms va on (h2.variable = va.variable) join atoms a on (va.atom = a.id)
+                                
+                                left outer join homomorphisms h3 on (h2.id = h3.id and h2.variable <> h3.variable) left outer join variables_atoms va3 on (h3.variable = va3.variable) left outer join atoms a3 on (va3.atom = a3.id) 
+                                where va3.position <> va.position    
+                                and a3.name = a.name
+                                group by h2.id ,a.name, va.position, h2.value, va3.position, h3.value
+                                having count(distinct h2.variable)>1)
+                            ) 
+                    ) Q where Q.var_no >= all ( -- only the homomorphisms assigning all the variables
+                        select count(value)
+                        from v
+                        group by id
+                    )
+                ), z as
+                (
+                 select distinct variable, value
+                from homomorphisms h1
+                where
+                    h1.LHS_RHS = 'LHS'
+                and exists ( -- the variable appears in the RHS
+                   
+                    select * 
+                    from variables_atoms va join atoms a on (va.atom = a.id)
+                    where 
+                        a.LHS_RHS = 'RHS'
+                        and va.variable = h1.variable
+                        and a.mapping = v_mapping_id
+                        
+                )                
+                and not exists ( -- a compatible assignment does not exist in any homomorphism
+             
+                    select *
+                    from homomorphisms h2
+                    where h2.LHS_RHS = 'RHS'
+                    and h1.variable = h2.variable
+                    and h1.value = h2.value)
+                    
+                ), x as (
+                
+                    select w1.id, w1.variable,w2.value 
+                    from w w1, w w2
+                    where w1.variable=w2.variable 
+                    and w1.value<>w2.value
+                    union
+                    select w1.id, w1.variable, z.value 
+                    from w w1, z
+                    where w1.variable=z.variable 
+                    and w1.value<>z.value     
+                    
+                ), y as (
+                select id, sys_connect_by_path(variable ||':'||value, '/') as PATH, LEVEL 
+                from x
+                connect by nocycle 
+                    (prior id = id and ( (prior variable = variable and prior value < value) or (prior variable < variable) )) -- don't assign the same variable twice
+                ) select distinct PATH from y where "LEVEL" =
+                    (select max("LEVEL") from y);
+
         cursor cur_pos_homo is
         -- We individuate all the assignments in the homomorphism
         -- in the LHS that are compatible with all the assignments
@@ -439,8 +626,8 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
         -- that is incompatible with all the assignments in the RHS.
         -- The right assignments must be forced with conditions.
         -- Notice that the homomorphisms are injective on variables
-          with v as (            
-     select distinct h1.id, variable, value
+    with v as (            
+    select distinct h1.id, variable, value
     from homomorphisms h1
     where h1.LHS_RHS = 'LHS'
     and h1.variable in ( -- assignments in the LHS of variables appearing also in the RHS
@@ -477,7 +664,7 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
             )
        select distinct PATH from tree
        where "LEVEL" = (select max("LEVEL") from tree)
-      and id not in (
+       and id not in (
             -- exclude all the homomorphisms that
             -- produce twice the same fact
                     select id from (
@@ -565,40 +752,57 @@ begin
     end loop;
     close cur_pos_homo;
     
-    
-
-
     -- %%%% NEGATIVE REPAIRS %%%% --
     dbms_output.put_line('Negative repairs');
         
-    v_h_id_old := null;
-     
-    -- create a new mapping
-    -- cloning the original mapping
-    MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_neg_mapping_id);
-    
-    update mappings set type = 'N' where id = v_new_neg_mapping_id; -- negative repair
-    
-    insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_neg_mapping_id);
-            --dbms_output.put_line('New mapping ' || v_new_neg_mapping_id || ' added to set ' || v_mapping_set);
-        
     open cur_neg_homo;
-    loop
-        fetch cur_neg_homo into v_h_var_id, v_h_val;
+        loop
+    
+        v_path := null;
+        v_var_val := null;
+    
+        fetch cur_neg_homo into v_path;
         exit when cur_neg_homo%notfound;
+            MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_neg_mapping_id);
+            
+            insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_neg_mapping_id);
+            --dbms_output.put_line('New mapping ' || v_new_pos_mapping_id || ' added to set ' || v_mapping_set);
+            
+            update mappings set type = 'N' where id = v_new_neg_mapping_id; -- negative repair
 
-        --dbms_output.put_line('Variable to repair: ' || v_h_var_id);            
-                    insert into conditions(id, variable, value, cond_type) values
-                        (seq_conditions.nextval, skolem.variables_from_variables_sk(v_h_var_id, v_new_neg_mapping_id), v_h_val, 'NEQ');
-                        --dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_h_var_id, v_new_neg_mapping_id) || '<>' || v_h_val || ' added.');
+            
+            v_var_neg := 1;
+            --dbms_output.put_line('---->' || v_path);
+            v_var := 'dummy';
+    
+            loop
+                    
+                select regexp_substr(v_path,'\w+:\w+',1,v_var_neg) into v_var_val from dual;
+                exit when v_var_val is null;
+                
+                select regexp_substr(v_var_val,'(\w+)\:(\w+)',1,1,null,1) into v_var from dual;
+                select regexp_substr(v_var_val,'(\w+)\:(\w+)',1,1,null,2) into v_val from dual;
+                
+                --dbms_output.put_line('Variable to repair: ' || v_var);            
+                insert into conditions(id, variable, value, cond_type) values
+                    (seq_conditions.nextval, skolem.variables_from_variables_sk(v_var, v_new_neg_mapping_id), v_val, 'NEQ');
+                    --dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_var, v_new_pos_mapping_id) || '=' || v_val || ' added.');
+
+                v_var_neg := v_var_neg + 1;
         
+            end loop;
+            
+        -- we update the mapping description
+        MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_neg_mapping_id);
+        
+        -- to return the output
+        v_mapping_set_id := v_mapping_set;
+   
     end loop;
     close cur_neg_homo;
-        
-    -- we update the mapping description
-    MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_neg_mapping_id);
-    
+
     -- We now do the shuffling so as to generate all the possible combinations
+    
     -- of conditions
     commit; -- Commit since there seems to be an Oracle bug, double-reading transactions when WITH is used (like in the suffle).
     dbms_output.put_line('Shuffling');
@@ -958,6 +1162,7 @@ begin
             
             -- we update the description, by considering the new conditions
             mappings_utils.update_description(v_new_template_mapping);
+            update mappings set type = 'V' where id = v_new_template_mapping;
         end loop;
         close cur_variants;    
     end loop;

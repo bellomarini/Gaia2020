@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Tuesday-February-09-2016   
+--  File created - Tuesday-March-22-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Table ATOMS
@@ -20,6 +20,15 @@
 --------------------------------------------------------
 
   CREATE UNIQUE INDEX "GAIA"."ATOMS_PK" ON "GAIA"."ATOMS" ("ID") 
+  PCTFREE 10 INITRANS 2 MAXTRANS 255 COMPUTE STATISTICS 
+  STORAGE(INITIAL 65536 NEXT 1048576 MINEXTENTS 1 MAXEXTENTS 2147483645
+  PCTINCREASE 0 FREELISTS 1 FREELIST GROUPS 1 BUFFER_POOL DEFAULT FLASH_CACHE DEFAULT CELL_FLASH_CACHE DEFAULT)
+  TABLESPACE "SYSTEM" ;
+--------------------------------------------------------
+--  DDL for Index ATOMS_INDEX1
+--------------------------------------------------------
+
+  CREATE INDEX "GAIA"."ATOMS_INDEX1" ON "GAIA"."ATOMS" ("MAPPING") 
   PCTFREE 10 INITRANS 2 MAXTRANS 255 COMPUTE STATISTICS 
   STORAGE(INITIAL 65536 NEXT 1048576 MINEXTENTS 1 MAXEXTENTS 2147483645
   PCTINCREASE 0 FREELISTS 1 FREELIST GROUPS 1 BUFFER_POOL DEFAULT FLASH_CACHE DEFAULT CELL_FLASH_CACHE DEFAULT)
