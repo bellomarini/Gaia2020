@@ -1162,7 +1162,7 @@ begin
             
             -- we update the description, by considering the new conditions
             mappings_utils.update_description(v_new_template_mapping);
-            update mappings set type = 'V' where id = v_new_template_mapping;
+            update mappings set type = type || 'V' where id = v_new_template_mapping;
         end loop;
         close cur_variants;    
     end loop;

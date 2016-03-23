@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Tuesday-March-22-2016   
+--  File created - Wednesday-March-23-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Table MAPPINGS
@@ -10,7 +10,7 @@
 	"DESCRIPTION" VARCHAR2(1000 BYTE), 
 	"SOURCE_SCHEMA" VARCHAR2(20 BYTE), 
 	"TARGET_SCHEMA" VARCHAR2(20 BYTE), 
-	"TYPE" VARCHAR2(1 BYTE) DEFAULT 'S', 
+	"TYPE" VARCHAR2(2 BYTE) DEFAULT 'S', 
 	"REPAIR_REF" VARCHAR2(20 BYTE)
    ) SEGMENT CREATION IMMEDIATE 
   PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 NOCOMPRESS LOGGING
