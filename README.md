@@ -121,6 +121,4 @@ where id in (
   select mapping
   from mapping_sets
   where id = <final mapping set id>
-
-
-  
+)
