@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Wednesday-March-23-2016   
+--  File created - Tuesday-May-10-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -513,7 +513,92 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
         -- for the unwanted "correct" combinations (mappings need
         -- not be in normal form)
         -- then we calculate the union with the unwanted homomorphisms
-        with v as (            
+        
+                with LAC as (  
+                    select distinct h2.id ,a.name, va.position,  h2.value, 
+                                                   va3.position given_pos, 
+                                                   h3.value given_value,  
+                                                   h2.variable variable
+                    from homomorphisms h2 
+                    join variables_atoms va on (h2.variable = va.variable) join atoms a on (va.atom = a.id)
+                    left outer join homomorphisms h3 on (h2.id = h3.id and h2.variable <> h3.variable) 
+                    left outer join variables_atoms va3 on (h3.variable = va3.variable) 
+                    left outer join atoms a3 on (va3.atom = a3.id) 
+                    
+                    where va3.position <> va.position    
+                    and a3.name = a.name
+                    and h2.LHS_RHS = 'LHS'
+                    and h3.LHS_RHS = 'LHS'
+                ), 
+                -- atoms in the RHS
+                RAC as (
+                select distinct h2.id ,a.name, va.position,  h2.value, 
+                                                   va3.position given_pos, 
+                                                   h3.value given_value,  
+                                                   h2.variable variable
+                    from homomorphisms h2 
+                    join variables_atoms va on (h2.variable = va.variable) join atoms a on (va.atom = a.id)
+                    left outer join homomorphisms h3 on (h2.id = h3.id and h2.variable <> h3.variable) 
+                    left outer join variables_atoms va3 on (h3.variable = va3.variable) 
+                    left outer join atoms a3 on (va3.atom = a3.id) 
+                    
+                    where va3.position <> va.position    
+                    and a3.name = a.name
+                    and h2.LHS_RHS = 'RHS'
+                    and h3.LHS_RHS = 'RHS'
+                
+                ), 
+                -- ambiguous in the LHS, that is,
+                -- they match in the LHS exactly with the same atom 
+                -- and produce the same value (however here we take
+                -- distinct values for repair purposes)
+                -- The distinct values exist since the
+                -- originating mapping is canonical
+                L_PAIRS AS (
+                    select distinct 
+                     l1.id
+                    ,l1.variable variable
+                    ,l1.value value
+                    ,l2.variable v2
+                    from LAC l1, LAC l2
+                    where l1.name = l2.name
+                    and l1.position = l2.position
+                    and l1.value <> l2.value
+                    and l1.given_pos = l2.given_pos
+                    and l1.given_value = l2.given_value
+                    and l1.variable <> l2.variable
+                    and l1.id = l2.id
+                ),
+                -- ambiguous in the RHS
+                R_PAIRS AS (
+                    select distinct 
+                     r1.id
+                    ,r1.variable variable
+                    ,r1.value value
+                    ,r2.variable v2
+                    from RAC r1, RAC r2
+                    where r1.name = r2.name
+                    and r1.position = r2.position
+                    and r1.value <> r2.value
+                    and r1.given_pos = r2.given_pos
+                    and r1.given_value = r2.given_value
+                    and r1.variable <> r2.variable
+                    and r1.id = r2.id
+                ), POS as ( -- the tree of assignments
+                    -- such that for the ambiguous LHS there are
+                    -- no equivalently ambiguous RHS
+                    select distinct id, variable, value
+    
+                    from L_PAIRS l
+                    where not exists (
+                        select * from R_PAIRS r
+                        where r.variable = l.variable
+                        and r.v2 = l.v2
+                    )
+                   
+                )
+        
+        /*
             select distinct h1.id, variable, value
             from homomorphisms h1
             where h1.LHS_RHS = 'LHS'
@@ -542,17 +627,18 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                     and h4.value = h3.value
                     and h4.LHS_RHS = 'RHS'
                 )
+                */
                             
-            ) 
+            
         -- and exclude the incompatible homomorphisms
         -- We individuate the assignments in the
         -- homomorphsism in the LHS
         -- that are are incompatible with
         -- all the assignments of any homomorphism in the RHS
         -- These assignments must be excluded in the negative repairs.
-               ), w as (
+               , w as (
                select id, variable, value from (
-               select distinct id, variable, value, count(value) over (partition by id) as var_no from v
+               select distinct id, variable, value, count(value) over (partition by id) as var_no from POS
                   where id not in (
                         -- exclude all the homomorphisms that
                         -- produce twice the same fact
@@ -569,7 +655,7 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                             ) 
                     ) Q where Q.var_no >= all ( -- only the homomorphisms assigning all the variables
                         select count(value)
-                        from v
+                        from POS
                         group by id
                     )
                 ), z as
@@ -617,15 +703,115 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                     (select max("LEVEL") from y);
 
         cursor cur_pos_homo is
-        -- We individuate all the assignments in the homomorphism
-        -- in the LHS that are compatible with all the assignments
-        -- of any homomorphism in the RHS and
-        -- for which there exists
-        -- another possible assignment in some homomorphism in the LHS, 
-        -- for the same variable,
-        -- that is incompatible with all the assignments in the RHS.
-        -- The right assignments must be forced with conditions.
-        -- Notice that the homomorphisms are injective on variables
+        -- We individuate all the ambiguities in the LHS
+        -- such that they do not correspond to equivalent
+        -- ambiguities in the RHS and
+        -- repair, by assigning the variables with
+        -- distinct values
+                with LAC as (  
+                    select distinct h2.id ,a.name, va.position,  h2.value, 
+                                                   va3.position given_pos, 
+                                                   h3.value given_value,  
+                                                   h2.variable variable
+                    from homomorphisms h2 
+                    join variables_atoms va on (h2.variable = va.variable) join atoms a on (va.atom = a.id)
+                    left outer join homomorphisms h3 on (h2.id = h3.id and h2.variable <> h3.variable) 
+                    left outer join variables_atoms va3 on (h3.variable = va3.variable) 
+                    left outer join atoms a3 on (va3.atom = a3.id) 
+                    
+                    where va3.position <> va.position    
+                    and a3.name = a.name
+                    and h2.LHS_RHS = 'LHS'
+                    and h3.LHS_RHS = 'LHS'
+                ), 
+                -- atoms in the RHS
+                RAC as (
+                select distinct h2.id ,a.name, va.position,  h2.value, 
+                                                   va3.position given_pos, 
+                                                   h3.value given_value,  
+                                                   h2.variable variable
+                    from homomorphisms h2 
+                    join variables_atoms va on (h2.variable = va.variable) join atoms a on (va.atom = a.id)
+                    left outer join homomorphisms h3 on (h2.id = h3.id and h2.variable <> h3.variable) 
+                    left outer join variables_atoms va3 on (h3.variable = va3.variable) 
+                    left outer join atoms a3 on (va3.atom = a3.id) 
+                    
+                    where va3.position <> va.position    
+                    and a3.name = a.name
+                    and h2.LHS_RHS = 'RHS'
+                    and h3.LHS_RHS = 'RHS'
+                
+                ), 
+                -- ambiguous in the LHS, that is,
+                -- they match in the LHS exactly with the same atom 
+                -- and produce the same value (however here we take
+                -- distinct values for repair purposes)
+                -- The distinct values exist since the
+                -- originating mapping is canonical
+                L_PAIRS AS (
+                    select distinct 
+                     l1.id
+                    ,l1.variable variable
+                    ,l1.value value
+                    ,l2.variable v2
+                    from LAC l1, LAC l2
+                    where l1.name = l2.name
+                    and l1.position = l2.position
+                    and l1.value <> l2.value
+                    and l1.given_pos = l2.given_pos
+                    and l1.given_value = l2.given_value
+                    and l1.variable <> l2.variable
+                    and l1.id = l2.id
+                ),
+                -- ambiguous in the RHS
+                R_PAIRS AS (
+                    select distinct 
+                     r1.id
+                    ,r1.variable variable
+                    ,r1.value value
+                    ,r2.variable v2
+                    from RAC r1, RAC r2
+                    where r1.name = r2.name
+                    and r1.position = r2.position
+                    and r1.value <> r2.value
+                    and r1.given_pos = r2.given_pos
+                    and r1.given_value = r2.given_value
+                    and r1.variable <> r2.variable
+                    and r1.id = r2.id
+                ), tree as ( -- the tree of assignments
+                    -- such that for the ambiguous LHS there are
+                    -- no equivalently ambiguous RHS
+                    select distinct id, sys_connect_by_path(variable ||':'||value, '/') as PATH, LEVEL
+    
+                    from L_PAIRS l
+                    where not exists (
+                        select * from R_PAIRS r
+                        where r.variable = l.variable
+                        and r.v2 = l.v2
+                    )
+                    connect by nocycle 
+                    (prior l.variable < l.variable and prior id = id) -- don't assign the same variable twice
+                )
+                select distinct PATH from tree
+                where "LEVEL" = (select max("LEVEL") from tree)
+                and id not in (
+                        -- exclude all the homomorphisms that
+                        -- produce twice the same fact
+                                select id from (
+                                -- counts the assignment of the same value for a given atom, position, given value in a given pos
+                                select distinct h2.id ,a.name, va.position, h2.value, va3.position, h3.value,  count(distinct h2.variable)
+                                from homomorphisms h2 join variables_atoms va on (h2.variable = va.variable) join atoms a on (va.atom = a.id)
+                                
+                                left outer join homomorphisms h3 on (h2.id = h3.id and h2.variable <> h3.variable) left outer join variables_atoms va3 on (h3.variable = va3.variable) left outer join atoms a3 on (va3.atom = a3.id) 
+                                where va3.position <> va.position    
+                                and a3.name = a.name
+                                group by h2.id ,a.name, va.position, h2.value, va3.position, h3.value
+                                having count(distinct h2.variable)>1)
+                            );
+        
+        
+        
+        /*
     with v as (            
     select distinct h1.id, variable, value
     from homomorphisms h1
@@ -648,14 +834,24 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
         where h3.variable = h1.variable
         and h3.id <> h1.id 
                     -- for which there are no compatible RHS 
-        and not exists (
+        and (not exists (
             select *
             from homomorphisms h4
             where h4.variable = h3.variable
             and h4.value = h3.value
             and h4.LHS_RHS = 'RHS'
-        )
-                    
+        )           -- or the other compatible assignments, globally
+                    -- participate in homomorphisms h4
+                    -- giving rise to different atoms
+         or exists (
+            select *
+            from homomorphisms h4
+            where h4.variable = h3.variable
+            and h4.value = h3.value
+            and h4.LHS_RHS = h4.LHS_RHS
+         
+         )
+        )       
     ) -- and exclude the incompatible homomorphisms
        ), tree as ( select id, sys_connect_by_path(variable ||':'||value, '/') as PATH, LEVEL
        from v
@@ -678,6 +874,8 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                     group by h2.id ,a.name, va.position, h2.value, va3.position, h3.value
                     having count(distinct h2.variable)>1)
                 );
+                
+                */
                 
     
 begin
@@ -1184,6 +1382,8 @@ procedure encode(v_mapping_list in clob, v_source_schema in varchar2, v_target_s
     v_new_mapping_set_id varchar2(20);
     v_var_mapping_set_id varchar2(20);
     
+    v_ts timestamp with time zone;
+        
 begin
 
     loop
@@ -1201,21 +1401,29 @@ begin
         
         -- generate e-schemas
         dbms_output.put_line('     GAIA: GENERATE ESCHEMAS');
+        v_ts := systimestamp;
         GAIA.GENERATE_ESCHEMAS(v_mapping_id, v_source_schema, v_target_schema, v_eschema1, v_eschema2);
+        dbms_output.put_line('Elapsed: ' || TO_CHAR(systimestamp - v_ts));
         -- generate the canonical mapping
-        dbms_output.put_line('     GAIA: GENERATE THE CANONICAL TEMPLATE MAPPING');        
+        dbms_output.put_line('     GAIA: GENERATE THE CANONICAL TEMPLATE MAPPING');
+        v_ts := systimestamp;
         GAIA.GET_CANONICAL_TEMPLATE_MAPPING (v_eschema1, v_eschema2, v_canonical_mapping_id);
+        dbms_output.put_line('Elapsed: ' || TO_CHAR(systimestamp - v_ts));
         -- repair the generated mapping
         dbms_output.put_line('     GAIA: GENERATE THE SET OF REPAIRED CANONICAL TEMPLATE MAPPINGS');        
+        v_ts := systimestamp;
         GAIA.GET_REPAIRED_TEMPLATE_MAPPINGS (v_canonical_mapping_id, v_mapping_set_id);
+        dbms_output.put_line('Elapsed: ' || TO_CHAR(systimestamp - v_ts));
         
         -- if we have generated the first mapping set,
         -- then it is the same as the previous
         if v_prev_mapping_set_id is null then
             v_prev_mapping_set_id := v_mapping_set_id;
         else -- else we merge with the previous
+            v_ts := systimestamp;
             dbms_output.put_line('     GAIA: MERGING THE GENERATED SET');        
             merge_mapping_sets(v_prev_mapping_set_id, v_mapping_set_id, v_new_mapping_set_id);
+        dbms_output.put_line('Elapsed: ' || TO_CHAR(systimestamp - v_ts));
             v_prev_mapping_set_id := v_new_mapping_set_id;
         end if;
                         
@@ -1224,9 +1432,12 @@ begin
     
     -- then we generate all the second level variants
     -- and return its result
-    dbms_output.put_line('     GAIA: GENERATE THE SECOND-LEVEL VARIANTS');        
 
+    dbms_output.put_line('     GAIA: GENERATE THE SECOND-LEVEL VARIANTS');        
+    v_ts := current_timestamp;
     generate_variants(v_prev_mapping_set_id, v_mapping_set_id);
+    dbms_output.put_line('Elapsed: ' || TO_CHAR(systimestamp - v_ts));
+
     v_mapping_set := v_mapping_set_id;
     
 end encode;
