@@ -601,44 +601,12 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                     select distinct l.id, l.variable, l.value
                     from L_PAIRS l -- ambiguous LHS
                                    -- for which there are some 
-                                   -- non-ambiguous PAIRS in the RHS
-                    join R_PAIRS r on (r.variable = l.variable and r.v2 = l.v2 and l.value = r.value and l.given_value = r.given_value)
+                                    -- or the pair does not exist at all and just one appears
+                    join R_PAIRS r on ((r.variable = l.variable and r.v2 = l.v2 and l.value = r.value and l.given_value = r.given_value) or
+                                       (r.variable = l.variable and l.value = r.value))
                     connect by nocycle 
                     (prior l.variable < l.variable and prior l.id = l.id) -- don't assign the same variable twice
                 )
-        
-        /*
-            select distinct h1.id, variable, value
-            from homomorphisms h1
-            where h1.LHS_RHS = 'LHS'
-            and h1.variable in ( -- assignments in the LHS of variables appearing also in the RHS
-                select variable 
-                from variables_atoms va join atoms a on (va.atom = a.id)
-                where a.LHS_RHS = 'RHS'
-            ) and  exists ( -- compatible with at least one assignments
-                select *
-                from homomorphisms h2
-                where h2.variable = h1.variable
-                and h2.value = h1.value
-                and h2.LHS_RHS = 'RHS' )
-                            -- but there are other assignments for the same variable
-                            -- that are incompatible
-            and exists (
-                select *
-                from homomorphisms h3
-                where h3.variable = h1.variable
-                and h3.id <> h1.id 
-                            -- for which there are no compatible RHS 
-                and not exists (
-                    select *
-                    from homomorphisms h4
-                    where h4.variable = h3.variable
-                    and h4.value = h3.value
-                    and h4.LHS_RHS = 'RHS'
-                )
-                */
-                            
-            
         -- and exclude the incompatible homomorphisms
         -- We individuate the assignments in the
         -- homomorphsism in the LHS
@@ -804,8 +772,9 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                     select distinct l.id, sys_connect_by_path(l.variable ||':'||l.value, '/') as PATH, LEVEL
                     from L_PAIRS l -- ambiguous LHS
                                    -- for which there are some 
-                                   -- non-ambiguous PAIRS in the RHS
-                    join R_PAIRS r on (r.variable = l.variable and r.v2 = l.v2 and l.value = r.value and l.given_value = r.given_value)
+                                   -- or the pair does not exist at all and just one appears
+                    join R_PAIRS r on ((r.variable = l.variable and r.v2 = l.v2 and l.value = r.value and l.given_value = r.given_value) or
+                                       (r.variable = l.variable and l.value = r.value))
                     connect by nocycle 
                     (prior l.variable < l.variable and prior l.id = l.id) -- don't assign the same variable twice
                 )
@@ -827,72 +796,7 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                             );
         
         
-        /*
-    with v as (            
-    select distinct h1.id, variable, value
-    from homomorphisms h1
-    where h1.LHS_RHS = 'LHS'
-    and h1.variable in ( -- assignments in the LHS of variables appearing also in the RHS
-        select variable 
-        from variables_atoms va join atoms a on (va.atom = a.id)
-        where a.LHS_RHS = 'RHS'
-    ) and  exists ( -- compatible with at least one assignments
-        select *
-        from homomorphisms h2
-        where h2.variable = h1.variable
-        and h2.value = h1.value
-        and h2.LHS_RHS = 'RHS' )
-                    -- but there are other assignments for the same variable
-                    -- that are incompatible
-    and exists (
-        select *
-        from homomorphisms h3
-        where h3.variable = h1.variable
-        and h3.id <> h1.id 
-                    -- for which there are no compatible RHS 
-        and (not exists (
-            select *
-            from homomorphisms h4
-            where h4.variable = h3.variable
-            and h4.value = h3.value
-            and h4.LHS_RHS = 'RHS'
-        )           -- or the other compatible assignments, globally
-                    -- participate in homomorphisms h4
-                    -- giving rise to different atoms
-         or exists (
-            select *
-            from homomorphisms h4
-            where h4.variable = h3.variable
-            and h4.value = h3.value
-            and h4.LHS_RHS = h4.LHS_RHS
-         
-         )
-        )       
-    ) -- and exclude the incompatible homomorphisms
-       ), tree as ( select id, sys_connect_by_path(variable ||':'||value, '/') as PATH, LEVEL
-       from v
-       connect by nocycle 
-            (prior variable < variable and prior id = id) -- don't assign the same variable twice
-            )
-       select distinct PATH from tree
-       where "LEVEL" = (select max("LEVEL") from tree)
-       and id not in (
-            -- exclude all the homomorphisms that
-            -- produce twice the same fact
-                    select id from (
-                    -- counts the assignment of the same value for a given atom, position, given value in a given pos
-                    select distinct h2.id ,a.name, va.position, h2.value, va3.position, h3.value,  count(distinct h2.variable)
-                    from homomorphisms h2 join variables_atoms va on (h2.variable = va.variable) join atoms a on (va.atom = a.id)
-                    
-                    left outer join homomorphisms h3 on (h2.id = h3.id and h2.variable <> h3.variable) left outer join variables_atoms va3 on (h3.variable = va3.variable) left outer join atoms a3 on (va3.atom = a3.id) 
-                    where va3.position <> va.position    
-                    and a3.name = a.name
-                    group by h2.id ,a.name, va.position, h2.value, va3.position, h3.value
-                    having count(distinct h2.variable)>1)
-                );
-                
-                */
-                
+     
     
 begin
         
