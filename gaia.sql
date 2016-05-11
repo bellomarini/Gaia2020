@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Tuesday-May-10-2016   
+--  File created - Wednesday-May-11-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -514,6 +514,11 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
         -- not be in normal form)
         -- then we calculate the union with the unwanted homomorphisms
         
+                                 -- We individuate all the ambiguities in the LHS
+        -- such that they do not correspond to equivalent
+        -- ambiguities in the RHS and
+        -- repair, by assigning the variables with
+        -- distinct values
                 with LAC as (  
                     select distinct h2.id ,a.name, va.position,  h2.value, 
                                                    va3.position given_pos, 
@@ -560,6 +565,7 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                     ,l1.variable variable
                     ,l1.value value
                     ,l2.variable v2
+                    ,l2.value given_value
                     from LAC l1, LAC l2
                     where l1.name = l2.name
                     and l1.position = l2.position
@@ -569,33 +575,36 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                     and l1.variable <> l2.variable
                     and l1.id = l2.id
                 ),
-                -- ambiguous in the RHS
+                -- non-ambiguous in the RHS
                 R_PAIRS AS (
                     select distinct 
                      r1.id
                     ,r1.variable variable
                     ,r1.value value
                     ,r2.variable v2
+                    ,r2.value given_value
                     from RAC r1, RAC r2
-                    where r1.name = r2.name
-                    and r1.position = r2.position
-                    and r1.value <> r2.value
-                    and r1.given_pos = r2.given_pos
-                    and r1.given_value = r2.given_value
-                    and r1.variable <> r2.variable
-                    and r1.id = r2.id
-                ), POS as ( -- the tree of assignments
-                    -- such that for the ambiguous LHS there are
-                    -- no equivalently ambiguous RHS
-                    select distinct id, variable, value
-    
-                    from L_PAIRS l
-                    where not exists (
-                        select * from R_PAIRS r
-                        where r.variable = l.variable
-                        and r.v2 = l.v2
+                    where 
+                    r1.variable <> r2.variable -- the two variables are distinct
+                    and r1.id = r2.id -- belonging to the same homomorphism
+                    and (
+                        r1.name <> r2.name -- in different atoms
+                        or r1.position <> r2.position -- or in in different positions
+                        or r1.given_pos <> r2.given_pos -- or with different given pos (which should be like above)
+                        or r1.given_value <> r2.given_value -- or with different given values
                     )
-                   
+                    
+                ), 
+                POS as ( -- the tree of assignments
+                    -- such that for the ambiguous LHS there are
+                    -- extending homo ambiguous in the RHS
+                    select distinct l.id, l.variable, l.value
+                    from L_PAIRS l -- ambiguous LHS
+                                   -- for which there are some 
+                                   -- non-ambiguous PAIRS in the RHS
+                    join R_PAIRS r on (r.variable = l.variable and r.v2 = l.v2 and l.value = r.value and l.given_value = r.given_value)
+                    connect by nocycle 
+                    (prior l.variable < l.variable and prior l.id = l.id) -- don't assign the same variable twice
                 )
         
         /*
@@ -708,6 +717,11 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
         -- ambiguities in the RHS and
         -- repair, by assigning the variables with
         -- distinct values
+                                -- We individuate all the ambiguities in the LHS
+        -- such that they do not correspond to equivalent
+        -- ambiguities in the RHS and
+        -- repair, by assigning the variables with
+        -- distinct values
                 with LAC as (  
                     select distinct h2.id ,a.name, va.position,  h2.value, 
                                                    va3.position given_pos, 
@@ -754,6 +768,7 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                     ,l1.variable variable
                     ,l1.value value
                     ,l2.variable v2
+                    ,l2.value given_value
                     from LAC l1, LAC l2
                     where l1.name = l2.name
                     and l1.position = l2.position
@@ -763,34 +778,36 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                     and l1.variable <> l2.variable
                     and l1.id = l2.id
                 ),
-                -- ambiguous in the RHS
+                -- non-ambiguous in the RHS
                 R_PAIRS AS (
                     select distinct 
                      r1.id
                     ,r1.variable variable
                     ,r1.value value
                     ,r2.variable v2
+                    ,r2.value given_value
                     from RAC r1, RAC r2
-                    where r1.name = r2.name
-                    and r1.position = r2.position
-                    and r1.value <> r2.value
-                    and r1.given_pos = r2.given_pos
-                    and r1.given_value = r2.given_value
-                    and r1.variable <> r2.variable
-                    and r1.id = r2.id
-                ), tree as ( -- the tree of assignments
-                    -- such that for the ambiguous LHS there are
-                    -- no equivalently ambiguous RHS
-                    select distinct id, sys_connect_by_path(variable ||':'||value, '/') as PATH, LEVEL
-    
-                    from L_PAIRS l
-                    where not exists (
-                        select * from R_PAIRS r
-                        where r.variable = l.variable
-                        and r.v2 = l.v2
+                    where 
+                    r1.variable <> r2.variable -- the two variables are distinct
+                    and r1.id = r2.id -- belonging to the same homomorphism
+                    and (
+                        r1.name <> r2.name -- in different atoms
+                        or r1.position <> r2.position -- or in in different positions
+                        or r1.given_pos <> r2.given_pos -- or with different given pos (which should be like above)
+                        or r1.given_value <> r2.given_value -- or with different given values
                     )
+                    
+                ), 
+                tree as ( -- the tree of assignments
+                    -- such that for the ambiguous LHS there are
+                    -- extending homo ambiguous in the RHS
+                    select distinct l.id, sys_connect_by_path(l.variable ||':'||l.value, '/') as PATH, LEVEL
+                    from L_PAIRS l -- ambiguous LHS
+                                   -- for which there are some 
+                                   -- non-ambiguous PAIRS in the RHS
+                    join R_PAIRS r on (r.variable = l.variable and r.v2 = l.v2 and l.value = r.value and l.given_value = r.given_value)
                     connect by nocycle 
-                    (prior l.variable < l.variable and prior id = id) -- don't assign the same variable twice
+                    (prior l.variable < l.variable and prior l.id = l.id) -- don't assign the same variable twice
                 )
                 select distinct PATH from tree
                 where "LEVEL" = (select max("LEVEL") from tree)
@@ -808,7 +825,6 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                                 group by h2.id ,a.name, va.position, h2.value, va3.position, h3.value
                                 having count(distinct h2.variable)>1)
                             );
-        
         
         
         /*
