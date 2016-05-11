@@ -229,6 +229,7 @@ BEGIN
         MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_mapping_id);
         
         dbms_output.put_line('Generated template mapping: ' || v_mapping_id);
+        LOG_UTILS.log_me('Generated template mapping: ' || v_mapping_id);
         
 END GET_CANONICAL_TEMPLATE_MAPPING;
 
@@ -807,6 +808,8 @@ begin
     
     -- to erase the temporary table
     delete from homomorphisms;
+    
+    LOG_UTILS.log_me('Generating homomorphisms');
 
     -- We calculate all the RHS homorphisms
     TEMPLATE_MAPPINGS_UTILS.ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'RHS');
@@ -817,9 +820,12 @@ begin
     -- we create the new mapping set
     select seq_mapping_sets.nextval into v_mapping_set from dual;
     dbms_output.put_line('Generating repaired set : ' || v_mapping_set);
+    LOG_UTILS.log_me('Generating repaired set : ' || v_mapping_set);
     
     -- %%%% POSITIVE REPAIRS %%%% --
     dbms_output.put_line('Positive repairs');
+
+    LOG_UTILS.log_me('Generating positive repairs');
         
             
     -- for positive repairs, we create a mapping for each combination of
@@ -872,6 +878,8 @@ begin
     
     -- %%%% NEGATIVE REPAIRS %%%% --
     dbms_output.put_line('Negative repairs');
+    LOG_UTILS.log_me('Generating negative repairs');
+
         
     open cur_neg_homo;
         loop
@@ -924,6 +932,9 @@ begin
     -- of conditions
     commit; -- Commit since there seems to be an Oracle bug, double-reading transactions when WITH is used (like in the suffle).
     dbms_output.put_line('Shuffling');
+    LOG_UTILS.log_me('Shuffling');
+    
+    
     SHUFFLE_MAPPING_SET(v_mapping_set);
     
 end GET_REPAIRED_TEMPLATE_MAPPINGS;
@@ -1138,6 +1149,7 @@ begin
     select seq_mapping_sets.nextval into v_mapping_set_id from dual;
 
     dbms_output.put_line('Merging sets ' || v_mapping_set_id1 || ' and ' || v_mapping_set_id2 || ' into set ' || v_mapping_set_id);
+    LOG_UTILS.log_me('Merging sets ' || v_mapping_set_id1 || ' and ' || v_mapping_set_id2 || ' into set ' || v_mapping_set_id);
 
     open cur_all_pairs;
     loop    
@@ -1217,6 +1229,7 @@ begin
     -- we create a new set of mappings
     select seq_mapping_sets.nextval into v_new_mapping_set from dual;
     dbms_output.put_line('Generating variants of ' || v_mapping_set_id || ' into ' || v_new_mapping_set);
+    LOG_UTILS.log_me('Generating variants of ' || v_mapping_set_id || ' into ' || v_new_mapping_set);
     
     -- we copy all the original mapping into the new set
     insert into mapping_sets (id, mapping)
