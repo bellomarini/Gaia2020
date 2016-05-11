@@ -1322,16 +1322,19 @@ begin
         
         -- generate e-schemas
         dbms_output.put_line('     GAIA: GENERATE ESCHEMAS');
+        LOG_UTILS.log_me('GAIA: GENERATE ESCHEMAS');
         v_ts := systimestamp;
         GAIA.GENERATE_ESCHEMAS(v_mapping_id, v_source_schema, v_target_schema, v_eschema1, v_eschema2);
         dbms_output.put_line('Elapsed: ' || TO_CHAR(systimestamp - v_ts));
         -- generate the canonical mapping
         dbms_output.put_line('     GAIA: GENERATE THE CANONICAL TEMPLATE MAPPING');
+        LOG_UTILS.log_me('GAIA: GENERATE THE CANONICAL TEMPLATE MAPPING');
         v_ts := systimestamp;
         GAIA.GET_CANONICAL_TEMPLATE_MAPPING (v_eschema1, v_eschema2, v_canonical_mapping_id);
         dbms_output.put_line('Elapsed: ' || TO_CHAR(systimestamp - v_ts));
         -- repair the generated mapping
-        dbms_output.put_line('     GAIA: GENERATE THE SET OF REPAIRED CANONICAL TEMPLATE MAPPINGS');        
+        dbms_output.put_line('     GAIA: GENERATE THE SET OF REPAIRED CANONICAL TEMPLATE MAPPINGS');
+        LOG_UTILS.log_me('GAIA: GENERATE THE SET OF REPAIRED CANONICAL TEMPLATE MAPPINGS');
         v_ts := systimestamp;
         GAIA.GET_REPAIRED_TEMPLATE_MAPPINGS (v_canonical_mapping_id, v_mapping_set_id);
         dbms_output.put_line('Elapsed: ' || TO_CHAR(systimestamp - v_ts));
@@ -1342,7 +1345,8 @@ begin
             v_prev_mapping_set_id := v_mapping_set_id;
         else -- else we merge with the previous
             v_ts := systimestamp;
-            dbms_output.put_line('     GAIA: MERGING THE GENERATED SET');        
+            dbms_output.put_line('     GAIA: MERGING THE GENERATED SET');   
+            LOG_UTILS.log_me('GAIA: MERGING THE GENERATED SET');
             merge_mapping_sets(v_prev_mapping_set_id, v_mapping_set_id, v_new_mapping_set_id);
         dbms_output.put_line('Elapsed: ' || TO_CHAR(systimestamp - v_ts));
             v_prev_mapping_set_id := v_new_mapping_set_id;
@@ -1354,7 +1358,8 @@ begin
     -- then we generate all the second level variants
     -- and return its result
 
-    dbms_output.put_line('     GAIA: GENERATE THE SECOND-LEVEL VARIANTS');        
+    dbms_output.put_line('     GAIA: GENERATE THE SECOND-LEVEL VARIANTS');
+    LOG_UTILS.log_me('GAIA: GENERATE THE SECOND-LEVEL VARIANTS');
     v_ts := current_timestamp;
     generate_variants(v_prev_mapping_set_id, v_mapping_set_id);
     dbms_output.put_line('Elapsed: ' || TO_CHAR(systimestamp - v_ts));
@@ -1362,6 +1367,7 @@ begin
     v_mapping_set := v_mapping_set_id;
     
     dbms_output.put_line('TOTAL Elapsed: ' || TO_CHAR(systimestamp - v_overall_ts));
+    LOG_UTILS.log_me('Finished');
 
 end encode;
 
