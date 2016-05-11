@@ -1312,6 +1312,7 @@ begin
     select regexp_substr(v_mapping_list,'([^;]+)',1,v_map_pos) into v_mapping_string from dual;
         exit when v_mapping_string is null;
         
+        LOG_UTILS.log_me('GAIA: encoding mapping ' || v_mapping_string);
         dbms_output.put_line('GAIA: handling mapping ' || v_mapping_string);
         
         -- parse mapping

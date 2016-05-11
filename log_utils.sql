@@ -13,6 +13,7 @@
 
   BEGIN
     insert into gaia_log(id, timestamp, text) values (seq_gaia_log.nextval, systimestamp, message);
+    commit;
   END log_me;
 
 END LOG_UTILS;
