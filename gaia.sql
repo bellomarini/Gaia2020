@@ -1303,6 +1303,7 @@ procedure encode(v_mapping_list in clob, v_source_schema in varchar2, v_target_s
     v_var_mapping_set_id varchar2(20);
     
     v_ts timestamp with time zone;
+    v_overall_ts timestamp with time zone := systimestamp;
         
 begin
 
@@ -1360,6 +1361,8 @@ begin
 
     v_mapping_set := v_mapping_set_id;
     
+    dbms_output.put_line('TOTAL Elapsed: ' || TO_CHAR(systimestamp - v_overall_ts));
+
 end encode;
 
 END GAIA;
