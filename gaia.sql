@@ -286,6 +286,7 @@ procedure SHUFFLE_MAPPING_SET (v_mapping_sets_id in varchar2) as
 
 begin
     
+    LOG_UTILS.log_me('Generating the combinations');
     open cur_shuffling;
     loop
         fetch cur_shuffling into v_conditions, v_original_mapping_id;
@@ -326,7 +327,10 @@ begin
         
         -- We update the description of the generated mapping
         mappings_utils.update_description(v_new_mapping_id);
+    end loop;
         
+        LOG_UTILS.log_me('Deleting the unwanted combinations');
+
         -- Mappings that generate the same fact
         -- twice (and miss some other) are not allowed and should be deleted
         -- Basically, the following query eliminates the mappings
@@ -475,9 +479,7 @@ begin
                 and v.mapping = m.id
                 )))
             );
-                
-    end loop;
-    
+                    
     close cur_shuffling;
 end SHUFFLE_MAPPING_SET;
 
