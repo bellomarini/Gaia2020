@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Wednesday-May-11-2016   
+--  File created - Thursday-May-12-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -251,21 +251,73 @@ procedure SHUFFLE_MAPPING_SET (v_mapping_sets_id in varchar2) as
         -- of the form "/original_variable_id:condition_from_mapping"
         -- We recurse the join by finding all the variables, no matter what mapping
         -- they come from
-            with A as (
-            select /*+ materialize */ sys_connect_by_path(original_variable ||':'||from_mapping,'/') conditions, mapping, LEVEL from (
-                            select distinct orig_var.id original_variable, var.mapping from_mapping, orig_var.mapping
-                            from conditions c join variables var on (c.variable = var.id)
-                                join mappings m on (m.id = var.mapping), variables orig_var
-                            where 
-                                var.mapping in (select mapping from mapping_sets where id = v_mapping_sets_id)
-                                and orig_var.mapping = m.repair_ref
-                                and c.variable = skolem.variables_from_variables_sk(orig_var.id,m.id)
-                        ) 
-                        where connect_by_isleaf = 1
-                        connect by nocycle (prior original_variable > original_variable)
+       
+            with B as (
+                select A.first_variable, A.first_mapping, A.current_variable, A.current_mapping, A.conditions, mapping orig_mapping, "LEVEL"
+                from 
+                            (
+                                select /*+ materialize */ sys_connect_by_path(original_variable ||':'||from_mapping,'/') conditions, mapping, LEVEL, 
+                                connect_by_root from_mapping first_mapping, 
+                                from_mapping current_mapping,
+                                connect_by_root original_variable first_variable,
+                                original_variable current_variable
+                                from (
+                                select distinct orig_var.id original_variable, var.mapping from_mapping, orig_var.mapping
+                                from conditions c join variables var on (c.variable = var.id)
+                                    join mappings m on (m.id = var.mapping), variables orig_var
+                                where 
+                                    var.mapping in (select mapping from mapping_sets where id = v_mapping_sets_id)
+                                    and orig_var.mapping = m.repair_ref
+                                    and c.variable = skolem.variables_from_variables_sk(orig_var.id,m.id)
+                            ) 
+                            where connect_by_isleaf = 1
+                            connect by nocycle ( original_variable < prior original_variable)
+                            order by FIRST_MAPPING, LEVEL     
+                ) A
+            ), C as (
+                select distinct b1.CONDITIONS, b2.first_mapping, b2.first_variable
+                , a.name atom, va.position, va2.position given_pos, va2.variable given_variable, c.id cond, c.cond_type, c.value
+                , count(*) over (partition by b1.CONDITIONS, c.cond_type, a.name, va.position, va2.variable, c.value) number_by_value_and_cond_type -- for EQ
+                , count(*) over                    (partition by b1.CONDITIONS, a.name, va.position, va2.variable, c.value) number_by_value -- number of value cross cond
+                , count(distinct c.cond_type) over (partition by b1.CONDITIONS, a.name, va.position, va2.variable, c.value) number_of_cond_types_by_value -- number of conds a value appears in
+                , count(distinct c.cond_type) over (partition by b1.CONDITIONS, a.name, va.position, va2.variable) number_of_cond_types_by_pos -- number of conds for a position
+                
+                , listagg(c.value, ',') within group (order     by b1.CONDITIONS, c.cond_type, a.name, va.position, va2.variable, c.value) 
+                                              over (partition by b1.CONDITIONS, c.cond_type, a.name, va.position, va2.variable) agg_values_by_cond_type -- for NEQ
+                , count(distinct c.cond_type) over (partition by b1.CONDITIONS) number_of_cond_types
+                , b1.orig_mapping
+                from 
+                B b1 join B b2 on (
+                    b1."LEVEL">=b2."LEVEL"
+                    --and b1.first_variable = b2.first_variable 
+                    --and b1.first_mapping = b2.first_mapping
+                     and b1.conditions like '%' || b2.conditions
+                     --and b1.conditions > b2.conditions
+                )
+                        join conditions c on (c.variable = skolem.variables_from_variables_sk(b2.first_variable,b2.first_mapping))
+                        join variables_atoms va on (va.variable = b2.first_variable)
+                        join atoms a on (va.atom = a.id)
+                        join variables_atoms va2 on (va2.atom = va.atom and va2.variable <> va.variable)
+                        
+                where b1."LEVEL"=(select max("LEVEL") from B)
+                and a.LHS_RHS = 'LHS'
             )
-        select distinct CONDITIONS, MAPPING from A
-        where "LEVEL" = (select max("LEVEL") from A) and regexp_count(conditions,'/') >1; -- to avoid one-variable conditions
+            , D AS (
+                select C.*, count(distinct first_variable) over (partition by conditions, cond_type, atom, given_pos, given_variable, agg_values_by_cond_type) num_of_aggs 
+                from C
+                
+            ) 
+            select conditions, orig_mapping
+            from D
+            where conditions not in ( -- exclude the unwanted combinations
+                select conditions
+                from D
+                where 
+                    (number_of_cond_types = 1) -- discard the ones with only equalities or inequalities, since they are already present
+                    or (number_by_value_and_cond_type > 1 and cond_type = 'EQ') -- discard the ones where a value is assigned more than once in equalities
+                    or (num_of_aggs > 1 and cond_type = 'NEQ') -- discard cases where exactly the same inequality is repeated for the same positions
+                    or (cond_type = 'EQ' and number_of_cond_types_by_value = 1 and number_of_cond_types_by_pos > 1) -- discard the cases where exactly the same variable is allowed by a NEQ and bound by an EQ
+            );
     
         -- we then iterate along these paths and build a mappign for each
         -- cloning the mapping and taking the conditions from
@@ -315,12 +367,16 @@ begin
                 -- retrieves the value and cond_type of the condition for v_var in v_map
                 -- and creates the new condition
                 -- finding the corresponding variables with the Skolem function
+                
+                -- DEBUGGING
+                
                 insert into conditions(id, variable, value, cond_type)
                     select seq_conditions.nextval, skolem.variables_from_variables_sk(v_var,v_new_mapping_id), 
                     value, cond_type
                     from conditions c join variables v on (c.variable = v.id)
                     where v.mapping = v_map
                         and c.variable = skolem.variables_from_variables_sk(v_var,v_map);
+                
                 
                 v_var_pos := v_var_pos + 1;
         end loop;
@@ -329,157 +385,7 @@ begin
         mappings_utils.update_description(v_new_mapping_id);
     end loop;
         
-        LOG_UTILS.log_me('Deleting the unwanted combinations');
-
-        -- Mappings that generate the same fact
-        -- twice (and miss some other) are not allowed and should be deleted
-        -- Basically, the following query eliminates the mappings
-        -- generated by the combination of multiple
-        -- equality conditions that assign the same value
-        -- twice.
-        delete from mappings 
-        where id in (
-            select mapping from (
-            -- we search when the same value is taken by two variables
-            -- in the same position of the same atom
-            -- given the same other variables
-            select m.id mapping, a.name atom, va.position, va2.position given_pos, va2.variable given_variable, c.value, count(*)
-            from
-                mappings m join mapping_sets ms on (m.id = ms.mapping)
-                join variables v on (v.mapping = m.id)
-                join variables_atoms va on (va.variable = v.id)
-                join atoms a on (va.atom = a.id)
-                join conditions c on (c.variable = v.id and c.cond_type = 'EQ')
-                join variables_atoms va2 on (va2.atom = va.atom and va2.variable <> va.variable)
-                
-            where ms.id = v_mapping_sets_id
-            and m.type = 'H' -- shuffled
-            group by m.id, a.name, va.position, va2.position, va2.variable, c.value
-            having count(*)>1)
-        );
-        
-        -- We should also remove the mappings where different variables take the same
-        -- value as a consequence of inequality conditions
-        -- We may have taken two inequality conditions that allow
-        -- the same value by excluding exactly the same others
-        -- so they would also miss the same values.
-        delete from mappings
-        where id in (
-            select mapping from (
-        select mapping, atom, position, given_pos, given_variable, cond, count(*)
-           from (
-               select mapping, variable, atom, position, given_pos, given_variable, listagg(value,',') within group (order by value) as cond
-               from (
-                select distinct m.id mapping, v.id variable, a.name atom, va.position, va2.position given_pos, va2.variable given_variable, c.value
-                from
-                    mappings m join mapping_sets ms on (m.id = ms.mapping)
-                    join variables v on (v.mapping = m.id)
-                    
-                    join variables_atoms va on (va.variable = v.id)
-                    join atoms a on (va.atom = a.id)
-                    
-                    join conditions c on (c.variable = v.id and c.cond_type = 'NEQ')
-                    
-                    join variables_atoms va2 on (va2.atom = va.atom and va2.variable <> va.variable)
-                    
-                where ms.id = v_mapping_sets_id
-                and m.type = 'H' -- shuffled
-                )
-                group by mapping, variable, atom, position, given_pos, given_variable
-        ) group by mapping, atom, position, given_pos, given_variable, cond
-        having count(*)>1
-        ));
-        
-        -- We now should remove the mappings that assign the same value twice
-        -- as the result of a combination equalities and inequalities,
-        -- i.e. there is an inequality that allows one possibility and
-        -- the same possibility is explicitly bound by an equality
-        delete from mappings where id in (
-            select mapping from (
-        with NEQ AS (
-                    select distinct m.id mapping, v.id variable, a.name atom, va.position, va2.position given_pos, va2.variable given_variable, c.value
-                    from
-                        mappings m join mapping_sets ms on (m.id = ms.mapping)
-                        join variables v on (v.mapping = m.id)
-                        
-                        join variables_atoms va on (va.variable = v.id)
-                        join atoms a on (va.atom = a.id)
-                        
-                        join conditions c on (c.variable = v.id and c.cond_type = 'NEQ')
-                        
-                        join variables_atoms va2 on (va2.atom = va.atom and va2.variable <> va.variable)
-                        
-                    where ms.id = v_mapping_sets_id
-                    and m.type = 'H' -- shuffled
-                ), EQ AS (
-                select distinct m.id mapping, v.id variable, a.name atom, va.position, va2.position given_pos, va2.variable given_variable, c.value
-                    from
-                        mappings m join mapping_sets ms on (m.id = ms.mapping)
-                        join variables v on (v.mapping = m.id)
-                        
-                        join variables_atoms va on (va.variable = v.id)
-                        join atoms a on (va.atom = a.id)
-                        
-                        join conditions c on (c.variable = v.id and c.cond_type = 'EQ')
-                        
-                        join variables_atoms va2 on (va2.atom = va.atom and va2.variable <> va.variable)
-                        
-                    where ms.id = v_mapping_sets_id
-                    and m.type = 'H' -- shuffled
-                )
-                select *
-                from EQ -- there is an equality
-                        -- such that there is a compatible inequality (i.e. for the same atom name, pos, given pos)
-                where exists (
-                    select *
-                    from NEQ
-                    where NEQ.mapping = EQ.mapping
-                    and NEQ.atom = EQ.atom
-                    and NEQ.position = EQ.position
-                    and NEQ.given_pos = EQ.given_pos
-                    and NEQ.given_variable = EQ.given_variable
-                    -- but this is an inequality that allows the same value (by not excluding it)
-                    -- this means that the two atoms bind to the same facts and so
-                    -- we miss something
-                    and not exists ( 
-                        select *
-                        from NEQ n1
-                        where n1.variable = NEQ.variable
-                        and n1.mapping = NEQ.mapping
-                        and n1.atom = NEQ.atom
-                        and n1.position = NEQ.position
-                        and n1.given_pos = NEQ.given_pos
-                        and n1.given_variable = NEQ.given_variable
-                        and n1.value = EQ.value
-                    )
-                )));
-        
-        
-        -- if there are shuffled mappings without any equality condition
-        -- or without any equality condition, then they must be deleted
-        -- as already present.
-        delete from mappings where id in (
-        select m.id
-            from mappings m join mapping_sets ms on (m.id = ms.mapping)
-            where ms.id = v_mapping_sets_id 
-            and m.type = 'H'
-            and (
-                (not exists ( -- there are no equality conditions
-                    select *
-                    from conditions c join variables v on (c.variable = v.id)
-                    where c.variable = v.id
-                    and c.cond_type = 'EQ'
-                    and v.mapping = m.id
-                )) or
-                (not exists ( -- there are no inequality conditions
-                select *
-                from conditions c join variables v on (c.variable = v.id)
-                where c.variable = v.id
-                and c.cond_type = 'NEQ'
-                and v.mapping = m.id
-                )))
-            );
-                    
+          
     close cur_shuffling;
 end SHUFFLE_MAPPING_SET;
 
@@ -935,7 +841,6 @@ begin
     commit; -- Commit since there seems to be an Oracle bug, double-reading transactions when WITH is used (like in the suffle).
     dbms_output.put_line('Shuffling');
     LOG_UTILS.log_me('Shuffling');
-    
     
     SHUFFLE_MAPPING_SET(v_mapping_set);
     
