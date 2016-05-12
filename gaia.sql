@@ -720,11 +720,15 @@ begin
     LOG_UTILS.log_me('Generating homomorphisms');
 
     -- We calculate all the RHS homorphisms
+    LOG_UTILS.log_me('Generating homomorphisms - RHS');
+
     TEMPLATE_MAPPINGS_UTILS.ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'RHS');
     
     -- We calculate all the LHS homomorphisms
     TEMPLATE_MAPPINGS_UTILS.ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'LHS');
     
+    LOG_UTILS.log_me('Generating homomorphisms - RHS');
+
     -- we create the new mapping set
     select seq_mapping_sets.nextval into v_mapping_set from dual;
     dbms_output.put_line('Generating repaired set : ' || v_mapping_set);

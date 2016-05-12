@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Wednesday-May-11-2016   
+--  File created - Thursday-May-12-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body TEMPLATE_MAPPINGS_UTILS
@@ -55,13 +55,13 @@ end POPULATE_POSSIBLE_VALUES;
 
 procedure ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id in varchar2, XHS in varchar2, v_chosen_eschema in varchar2 := null) as
     path varchar2(200);
-    var varchar2(100);
-    val varchar2(100);
-    var_val varchar2(100);
+    var varchar2(20);
+    val varchar2(20);
+    var_val varchar2(40);
     var_pos integer := 0;
-    v_id_homo varchar2(100);
+    v_id_homo varchar2(30);
     
-    v_eschema varchar2(100);
+    v_eschema varchar2(20);
         
 cursor cur_homo is
            -- each row is a string "var:val/var:val/var:val .... "
@@ -122,8 +122,11 @@ begin
     end if;
     
     -- calculates all the atomic homomorphisms
+    LOG_UTILS.log_me('Generating the possible values for eschema ' || v_eschema);
     POPULATE_POSSIBLE_VALUES(v_eschema);
     
+    LOG_UTILS.log_me('Generating the homomorphisms');
+
     open cur_homo;
     loop
     fetch cur_homo into path;
