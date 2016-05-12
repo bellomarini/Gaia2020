@@ -1212,7 +1212,7 @@ begin
 
 end GENERATE_VARIANTS;
 
-procedure encode(v_mapping_list in clob, v_source_schema in varchar2, v_target_schema in varchar2, v_mapping_set out varchar2) as
+procedure encode(v_mapping_list in clob, v_source_schema in varchar2, v_target_schema in varchar2, v_mapping_set out varchar2, enable_second_level_variants boolean default true) as
 
     v_map_pos integer := 1;
     v_mapping_string varchar2(200);
@@ -1283,13 +1283,16 @@ begin
     -- then we generate all the second level variants
     -- and return its result
 
-    dbms_output.put_line('     GAIA: GENERATE THE SECOND-LEVEL VARIANTS');
-    LOG_UTILS.log_me('GAIA: GENERATE THE SECOND-LEVEL VARIANTS');
-    v_ts := current_timestamp;
-    generate_variants(v_prev_mapping_set_id, v_mapping_set_id);
-    dbms_output.put_line('Elapsed: ' || TO_CHAR(systimestamp - v_ts));
+    if enable_second_level_variants then
+        dbms_output.put_line('     GAIA: GENERATE THE SECOND-LEVEL VARIANTS');
+        LOG_UTILS.log_me('GAIA: GENERATE THE SECOND-LEVEL VARIANTS');
+        v_ts := current_timestamp;
+        generate_variants(v_prev_mapping_set_id, v_mapping_set_id);
+        dbms_output.put_line('Elapsed: ' || TO_CHAR(systimestamp - v_ts));
 
-    v_mapping_set := v_mapping_set_id;
+        v_mapping_set := v_mapping_set_id;
+        
+    end if;
     
     dbms_output.put_line('TOTAL Elapsed: ' || TO_CHAR(systimestamp - v_overall_ts));
     LOG_UTILS.log_me('Finished');

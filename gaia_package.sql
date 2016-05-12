@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Tuesday-March-08-2016   
+--  File created - Thursday-May-12-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package GAIA
@@ -45,7 +45,7 @@ procedure GENERATE_VARIANTS (v_mapping_set_id in varchar2, v_new_mapping_set out
 -- 3)
 -- generate_variants(set M) --> set Q of the possible variants
 -- set M is the final output
-procedure encode(v_mapping_list in clob, v_source_schema in varchar2, v_target_schema in varchar2, v_mapping_set out varchar2);
+procedure encode(v_mapping_list in clob, v_source_schema in varchar2, v_target_schema in varchar2, v_mapping_set out varchar2, enable_second_level_variants boolean default true);
 
 
 END GAIA;
