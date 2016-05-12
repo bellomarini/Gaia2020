@@ -105,8 +105,11 @@ DECLARE
     V_TARGET_SCHEMA varchar2(20) := 'GAIA_INPUT';
     -- Semicolon-separated schema mappings of the transformation scenario
     V_MAPPING_LIST varchar2(200) := 'TEST_TABLE_2(i,x,y,z,k)->OUTPUT_TABLE_2(i,x,y,z)';
+    -- Enable or disable second-level variants
+    v_enable_second_level_variants boolean := TRUE;
+    
 BEGIN
-    GAIA.encode(V_MAPPING_LIST,V_SOURCE_SCHEMA,V_TARGET_SCHEMA,v_mapping_set_out);
+    GAIA.encode(V_MAPPING_LIST,V_SOURCE_SCHEMA,V_TARGET_SCHEMA,v_mapping_set_out,v_enable_second_level_variants);
 END;
 ```
 
