@@ -78,12 +78,12 @@ TODO
 ----
 
 * Search
-  - given a source schema, propose all the applicable template schema mappings
-  - given a target schema, propose all the applicable template schema mappings
-  - given a source and a target schema, propose all the applicable template schema mappings
+  - given a source e-schema, propose all the applicable template schema mappings
+  - given a target e-schema, propose all the applicable template schema mappings
+  - given a source and a target e-schema, propose all the applicable template schema mappings
   
 * S-D procedure
-  - given a database schema, generate the corresponding e-schema
+  - given a database schema, generate the corresponding e-schema (which is needed for the search as well)
   - given a template schema mapping and an e-schema, generate the schema mapping for the database schema
 
 * Functions and constants
