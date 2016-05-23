@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Thursday-May-12-2016   
+--  File created - Monday-May-23-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -272,7 +272,7 @@ procedure SHUFFLE_MAPPING_SET (v_mapping_sets_id in varchar2) as
                             ) 
                             where connect_by_isleaf = 1
                             connect by nocycle ( original_variable < prior original_variable)
-                            order by FIRST_MAPPING, LEVEL     
+                            --order by FIRST_MAPPING, LEVEL     
                 ) A
             ), C as (
                 select distinct b1.CONDITIONS, b2.first_mapping, b2.first_variable
@@ -307,7 +307,7 @@ procedure SHUFFLE_MAPPING_SET (v_mapping_sets_id in varchar2) as
                 from C
                 
             ) 
-            select conditions, orig_mapping
+            select distinct conditions, orig_mapping
             from D
             where conditions not in ( -- exclude the unwanted combinations
                 select conditions
@@ -340,6 +340,7 @@ begin
     
     LOG_UTILS.log_me('Generating the combinations');
     open cur_shuffling;
+    LOG_UTILS.log_me('Writing the combinations');
     loop
         fetch cur_shuffling into v_conditions, v_original_mapping_id;
         exit when cur_shuffling%notfound;
@@ -652,7 +653,7 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                     and l1.value <> l2.value
                     and l1.given_pos = l2.given_pos
                     and l1.given_value = l2.given_value
-                    and l1.variable <> l2.variable
+                    and l1.variable <> l2.variable -- <>
                     and l1.id = l2.id
                 ),
                 -- non-ambiguous in the RHS
