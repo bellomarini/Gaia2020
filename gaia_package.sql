@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Thursday-May-12-2016   
+--  File created - Monday-May-23-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package GAIA
@@ -18,7 +18,7 @@ procedure GENERATE_ESCHEMAS(v_mapping_id in varchar2, v_database_source_schema v
 procedure GET_CANONICAL_TEMPLATE_MAPPING (v_e_schema1 in varchar2, v_e_schema2 in varchar2,  v_mapping_id out varchar2);
 
 -- It takes as input a canonical template mapping and returns a set of possible repairs for it
-procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_set_id out varchar2);
+procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_set_id out varchar2, lac_optimize boolean default false);
 
 -- It takes as input a pair of disjoint mapping sets, each containing equivalent
 -- canonical mappings, and produces the merged set.
@@ -45,7 +45,7 @@ procedure GENERATE_VARIANTS (v_mapping_set_id in varchar2, v_new_mapping_set out
 -- 3)
 -- generate_variants(set M) --> set Q of the possible variants
 -- set M is the final output
-procedure encode(v_mapping_list in clob, v_source_schema in varchar2, v_target_schema in varchar2, v_mapping_set out varchar2, enable_second_level_variants boolean default true);
+procedure encode(v_mapping_list in clob, v_source_schema in varchar2, v_target_schema in varchar2, v_mapping_set out varchar2, enable_second_level_variants boolean default true, lac_optimize boolean default false);
 
 
 END GAIA;

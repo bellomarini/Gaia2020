@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Thursday-May-12-2016   
+--  File created - Monday-May-23-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body TEMPLATE_MAPPINGS_UTILS
@@ -53,7 +53,7 @@ begin
 end POPULATE_POSSIBLE_VALUES;
 
 
-procedure ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id in varchar2, XHS in varchar2, v_chosen_eschema in varchar2 := null) as
+procedure ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id in varchar2, XHS in varchar2, v_chosen_eschema in varchar2 := null, lac_optimize boolean default false) as
     path varchar2(200);
     var varchar2(20);
     val varchar2(20);
@@ -66,7 +66,7 @@ procedure ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id in varchar2, XHS in varchar2, 
 cursor cur_homo is
            -- each row is a string "var:val/var:val/var:val .... "
            -- each row is a distinct assignment of variables
-           -- not all teh combinations are possible
+           -- not all the combinations are possible
            -- and must be discarded
                 with var_val as (
                  select distinct pv.value, va.variable
@@ -109,7 +109,7 @@ cursor cur_homo is
 begin
 
     -- invokes POPULATE_POSSIBLE_VALUES
-    if v_chosen_eschema is null then
+    if v_chosen_eschema is null or v_chosen_eschema = '' then
         if XHS = 'RHS' then
             select target_schema into v_eschema
             from mappings where id = v_mapping_id;
@@ -170,6 +170,36 @@ begin
                 and pv.given_pos = va2.position
                 and pv.given_value = h2.value)
         );
+        
+        -- LAC optimization
+        -- for all the pairs of ambiguous variables there
+        -- must hold a order constraint (<=)
+        -- delete all the others
+        if lac_optimize then
+            LOG_UTILS.log_me('LAC optimization');
+    
+            delete from homomorphisms where id in (
+            select distinct h1.id
+                
+                from homomorphisms h1 join homomorphisms h2 on (h1.id = h2.id and h1.variable < h2.variable)
+                join variables_atoms va1 on (h1.variable = va1.variable) 
+                join variables_atoms va2 on (h2.variable = va2.variable)
+                
+                join variables_atoms va11 on (va11.atom = va1.atom and va11.position <> va1.position) 
+                join variables_atoms va21 on (va21.atom = va2.atom and va21.position <> va2.position)
+                
+                join atoms a1 on (va1.atom = a1.id) join atoms a2 on (va2.atom = a2.id)
+    
+                
+                where a1.LHS_RHS = 'LHS' and a2.LHS_RHS = 'LHS'
+                and a1.name = a2.name
+                and a1.id <> a2.id -- different atom
+                and va11.variable = va21.variable -- same given variable
+                and va1.position = va2.position -- same position
+                and h1.value > h2.value -- wrong relation between values
+            );
+        end if;
+       
 end ALL_POSSIBLE_HOMOMORPHISMS;
 
 function EXTENSION_TEST(v_mapping_id1 in varchar2, v_mapping_id2 varchar2) return boolean as

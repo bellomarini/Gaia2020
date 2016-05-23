@@ -391,7 +391,7 @@ begin
 end SHUFFLE_MAPPING_SET;
 
 
-procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_set_id out varchar2) as
+procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_set_id out varchar2, lac_optimize boolean default false) as
 
     v_source_eschema varchar2(20);
     v_target_eschema varchar2(20);
@@ -482,7 +482,7 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                     and l1.value <> l2.value
                     and l1.given_pos = l2.given_pos
                     and l1.given_value = l2.given_value
-                    and l1.variable <> l2.variable
+                    and l1.variable <> l2.variable -- <>
                     and l1.id = l2.id
                 ),
                 -- non-ambiguous in the RHS
@@ -726,7 +726,7 @@ begin
     TEMPLATE_MAPPINGS_UTILS.ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'RHS');
     
     -- We calculate all the LHS homomorphisms
-    TEMPLATE_MAPPINGS_UTILS.ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'LHS');
+    TEMPLATE_MAPPINGS_UTILS.ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'LHS','',lac_optimize);
     
     LOG_UTILS.log_me('Generating homomorphisms - RHS');
 
@@ -1213,7 +1213,7 @@ begin
 
 end GENERATE_VARIANTS;
 
-procedure encode(v_mapping_list in clob, v_source_schema in varchar2, v_target_schema in varchar2, v_mapping_set out varchar2, enable_second_level_variants boolean default true) as
+procedure encode(v_mapping_list in clob, v_source_schema in varchar2, v_target_schema in varchar2, v_mapping_set out varchar2, enable_second_level_variants boolean default true, lac_optimize boolean default false) as
 
     v_map_pos integer := 1;
     v_mapping_string varchar2(200);
@@ -1262,7 +1262,7 @@ begin
         dbms_output.put_line('     GAIA: GENERATE THE SET OF REPAIRED CANONICAL TEMPLATE MAPPINGS');
         LOG_UTILS.log_me('GAIA: GENERATE THE SET OF REPAIRED CANONICAL TEMPLATE MAPPINGS');
         v_ts := systimestamp;
-        GAIA.GET_REPAIRED_TEMPLATE_MAPPINGS (v_canonical_mapping_id, v_mapping_set_id);
+        GAIA.GET_REPAIRED_TEMPLATE_MAPPINGS (v_canonical_mapping_id, v_mapping_set_id, lac_optimize);
         dbms_output.put_line('Elapsed: ' || TO_CHAR(systimestamp - v_ts));
         
         -- if we have generated the first mapping set,
