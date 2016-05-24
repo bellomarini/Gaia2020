@@ -229,7 +229,7 @@ BEGIN
         MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_mapping_id);
         
         declare
-            v_description varchar2(400);
+            v_description varchar2(600);
         begin
             select description into v_description
             from mappings
