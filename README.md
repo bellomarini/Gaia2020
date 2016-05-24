@@ -55,16 +55,14 @@ These are the types of mappings we handle in the MAPPINGS table:
 - S : a usual schema mapping
 - C : a canonical template mapping
 - L : a canonical template mapping with laconic repairs
-- CP : a template mapping with equalities (first-level variant obtained as a positive repair of a canonical template mapping)
-- LP : a template mapping with equalities (first-level variant obtained as a positive repair of a laconic template mapping)
-- CN : a template mapping with inequalities (first-level variant obtained with a negative repair of a canonical template mapping)
-- LN : a template mapping with inequalities (first-level variant obtained with a negative repair of a laconic template mapping)
-- CH : a template mapping with equalities and inequalities (first-level variant obtained with a hybrid repair of a canonical mapping)
-- LH : a template mapping with equalities and inequalities (first-level variant obtained with a hybrid repair of a laconic mapping)
-- [C|L]PV : a template mapping generated as a second-level variant of a positive repair of a canonical or laconic mapping
-- [C|L]NV : a template mapping generated as a second-level variant of a negative repair of a canonical or laconic mapping
-- [C|L]HV : a template mapping generated as a second-level variant of a hybrid repair of a canonical or laconic mapping
+- P : a template mapping with equalities (first-level variant obtained as a positive repair of a canonical template mapping)
+- N : a template mapping with inequalities (first-level variant obtained with a negative repair of a canonical template mapping)
+- H : a template mapping with equalities and inequalities (first-level variant obtained with a hybrid repair of a canonical mapping)
+- PV : a template mapping generated as a second-level variant of a positive repair of a canonical mapping
+- NV : a template mapping generated as a second-level variant of a negative repair of a canonical mapping
+- HV : a template mapping generated as a second-level variant of a hybrid repair of a canonical mapping
 - LV : a template mapping generated as a second-level variant of a laconic mapping
+- CV : a template mapping generated as a second-level variant of a canonical mapping
 
 Organization of the repository
 -------------------------------
