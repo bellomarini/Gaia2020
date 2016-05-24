@@ -442,6 +442,9 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
     
     v_min_var varchar2(30);
     v_max_var varchar2(30);
+    
+    v_laconic boolean := TRUE;
+
 
     cursor cur_homo is
     select id, variable, value from homomorphisms
@@ -610,7 +613,8 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                     select w1.id, w1.variable, z.value 
                     from w w1, z
                     where w1.variable=z.variable 
-                    and w1.value<>z.value     
+                    and w1.value<>z.value
+                    
                     
                 ), y as (
                 select id, sys_connect_by_path(variable ||':'||value, '/') as PATH, LEVEL 
@@ -805,6 +809,7 @@ begin
         end loop;
         close v_lac_cur;
         LOG_UTILS.log_me('Laconic mapping: ' || v_new_lac_mapping_id);
+        v_laconic := TRUE;
         
     else -- if lac are not needed, then it coincides with the original one
         v_new_lac_mapping_id := v_mapping_id;
@@ -824,135 +829,140 @@ begin
     
 
     -- %%%% POSITIVE REPAIRS %%%% --
-    dbms_output.put_line('Positive repairs');
-
-    LOG_UTILS.log_me('Generating positive repairs');
-        
-            
-    -- for positive repairs, we create a mapping for each combination of
-    -- assignments (in or)
-    open cur_pos_homo;
-    loop
+    if not lac_optimize then
+        dbms_output.put_line('Positive repairs');
     
-        v_path := null;
-        v_var_val := null;
-    
-        fetch cur_pos_homo into v_path;
-        exit when cur_pos_homo%notfound;
-            MAPPINGS_UTILS.CLONE_MAPPING(v_new_lac_mapping_id, v_new_pos_mapping_id);
+        LOG_UTILS.log_me('Generating positive repairs');
             
-            insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_pos_mapping_id);
-            --dbms_output.put_line('New mapping ' || v_new_pos_mapping_id || ' added to set ' || v_mapping_set);
-            
-            update mappings set type = type || 'P' where id = v_new_pos_mapping_id; -- negative repair
-
-            
-            v_var_pos := 1;
-            --dbms_output.put_line('---->' || v_path);
-            v_var := 'dummy';
-    
-            loop
-                    
-                select regexp_substr(v_path,'\w+:\w+',1,v_var_pos) into v_var_val from dual;
-                exit when v_var_val is null;
                 
-                select regexp_substr(v_var_val,'(\w+)\:(\w+)',1,1,null,1) into v_var from dual;
-                select regexp_substr(v_var_val,'(\w+)\:(\w+)',1,1,null,2) into v_val from dual;
-                
-                --dbms_output.put_line('Variable to repair: ' || v_var);            
-                insert into conditions(id, variable, value, cond_type) values
-                    (seq_conditions.nextval, skolem.variables_from_variables_sk(v_var, v_new_pos_mapping_id), v_val, 'EQ');
-                    --dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_var, v_new_pos_mapping_id) || '=' || v_val || ' added.');
-
-                v_var_pos := v_var_pos + 1;
-        
-            end loop;
-            
-        -- we update the mapping description
-        MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_pos_mapping_id);
-        
-        -- to return the output
-        v_mapping_set_id := v_mapping_set;
-   
-    end loop;
-    close cur_pos_homo;
-    
-            declare
-                v_cnt integer := 0;
-            begin
-                select count(*) into v_cnt 
-                from mapping_sets where id = v_mapping_set;
-                LOG_UTILS.log_me('Cumulative number of repairs: ' || v_cnt);
-            end;
-    
-    -- %%%% NEGATIVE REPAIRS %%%% --
-    dbms_output.put_line('Negative repairs');
-    LOG_UTILS.log_me('Generating negative repairs');
-
-        
-    open cur_neg_homo;
+        -- for positive repairs, we create a mapping for each combination of
+        -- assignments (in or)
+        open cur_pos_homo;
         loop
+        
+            v_path := null;
+            v_var_val := null;
+        
+            fetch cur_pos_homo into v_path;
+            exit when cur_pos_homo%notfound;
+                MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_pos_mapping_id);
+                
+                insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_pos_mapping_id);
+                --dbms_output.put_line('New mapping ' || v_new_pos_mapping_id || ' added to set ' || v_mapping_set);
+                
+                update mappings set type = type || 'P' where id = v_new_pos_mapping_id; -- negative repair
     
-        v_path := null;
-        v_var_val := null;
-    
-        fetch cur_neg_homo into v_path;
-        exit when cur_neg_homo%notfound;
-            MAPPINGS_UTILS.CLONE_MAPPING(v_new_lac_mapping_id, v_new_neg_mapping_id);
-            
-            insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_neg_mapping_id);
-            --dbms_output.put_line('New mapping ' || v_new_pos_mapping_id || ' added to set ' || v_mapping_set);
-            
-            update mappings set type = type || 'N' where id = v_new_neg_mapping_id; -- negative repair
-
-            
-            v_var_neg := 1;
-            --dbms_output.put_line('---->' || v_path);
-            v_var := 'dummy';
-    
-            loop
+                
+                v_var_pos := 1;
+                --dbms_output.put_line('---->' || v_path);
+                v_var := 'dummy';
+        
+                loop
+                        
+                    select regexp_substr(v_path,'\w+:\w+',1,v_var_pos) into v_var_val from dual;
+                    exit when v_var_val is null;
                     
-                select regexp_substr(v_path,'\w+:\w+',1,v_var_neg) into v_var_val from dual;
-                exit when v_var_val is null;
-                
-                select regexp_substr(v_var_val,'(\w+)\:(\w+)',1,1,null,1) into v_var from dual;
-                select regexp_substr(v_var_val,'(\w+)\:(\w+)',1,1,null,2) into v_val from dual;
-                
-                --dbms_output.put_line('Variable to repair: ' || v_var);            
-                insert into conditions(id, variable, value, cond_type) values
-                    (seq_conditions.nextval, skolem.variables_from_variables_sk(v_var, v_new_neg_mapping_id), v_val, 'NEQ');
-                    --dbms_output.put_line('Condition ' || skolem.variables_from_variables_sk(v_var, v_new_pos_mapping_id) || '=' || v_val || ' added.');
-
-                v_var_neg := v_var_neg + 1;
-        
-            end loop;
+                    select regexp_substr(v_var_val,'(\w+)\:(\w+)',1,1,null,1) into v_var from dual;
+                    select regexp_substr(v_var_val,'(\w+)\:(\w+)',1,1,null,2) into v_val from dual;
+                    
+                              insert into conditions(id, variable, value, cond_type) values
+                                (seq_conditions.nextval, 
+                                skolem.variables_from_variables_sk(v_var,v_new_pos_mapping_id), 
+                                v_val, 'EQ');
+                    
+                    v_var_pos := v_var_pos + 1;
             
-        -- we update the mapping description
-        MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_neg_mapping_id);
+                end loop;
+                
+            -- we update the mapping description
+            MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_pos_mapping_id);
+            
+            -- to return the output
+            v_mapping_set_id := v_mapping_set;
+       
+        end loop;
+        close cur_pos_homo;
         
-            declare
-                v_cnt integer := 0;
-            begin
-                select count(*) into v_cnt 
-                from mapping_sets where id = v_mapping_set;
-                LOG_UTILS.log_me('Cumulative number of repairs: ' || v_cnt);
-            end;
+                declare
+                    v_cnt integer := 0;
+                begin
+                    select count(*) into v_cnt 
+                    from mapping_sets where id = v_mapping_set;
+                    LOG_UTILS.log_me('Cumulative number of repairs: ' || v_cnt);
+                end;
         
-        -- to return the output
-        v_mapping_set_id := v_mapping_set;
-   
-    end loop;
-    close cur_neg_homo;
-
-    -- We now do the shuffling so as to generate all the possible combinations
+        -- %%%% NEGATIVE REPAIRS %%%% --
+        dbms_output.put_line('Negative repairs');
+        LOG_UTILS.log_me('Generating negative repairs');
     
-    -- of conditions
-    commit; -- Commit since there seems to be an Oracle bug, double-reading transactions when WITH is used (like in the suffle).
-    dbms_output.put_line('Shuffling');
-    LOG_UTILS.log_me('Shuffling');
+            
+        open cur_neg_homo;
+            loop
+        
+            v_path := null;
+            v_var_val := null;
+        
+            fetch cur_neg_homo into v_path;
+            exit when cur_neg_homo%notfound;
+                MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_neg_mapping_id);
+                
+                insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_neg_mapping_id);
+                --dbms_output.put_line('New mapping ' || v_new_pos_mapping_id || ' added to set ' || v_mapping_set);
+                
+                update mappings set type = type || 'N' where id = v_new_neg_mapping_id; -- negative repair
     
-    SHUFFLE_MAPPING_SET(v_mapping_set);
+                
+                v_var_neg := 1;
+                --dbms_output.put_line('---->' || v_path);
+                v_var := 'dummy';
+        
+                loop
+                        
+                    select regexp_substr(v_path,'\w+:\w+',1,v_var_neg) into v_var_val from dual;
+                    exit when v_var_val is null;
+                    
+                    select regexp_substr(v_var_val,'(\w+)\:(\w+)',1,1,null,1) into v_var from dual;
+                    select regexp_substr(v_var_val,'(\w+)\:(\w+)',1,1,null,2) into v_val from dual;
+                    
+                   
+                        insert into conditions(id, variable, value, cond_type) values
+                                (seq_conditions.nextval, 
+                                skolem.variables_from_variables_sk(v_var,v_new_neg_mapping_id), 
+                                v_val, 'NEQ');
+                    
+                    
+                    v_var_neg := v_var_neg + 1;
+            
+                end loop;
+                
+            -- we update the mapping description
+            MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_neg_mapping_id);
+            
+                declare
+                    v_cnt integer := 0;
+                begin
+                    select count(*) into v_cnt 
+                    from mapping_sets where id = v_mapping_set;
+                    LOG_UTILS.log_me('Cumulative number of repairs: ' || v_cnt);
+                end;
+            
+            -- to return the output
+            v_mapping_set_id := v_mapping_set;
+       
+        end loop;
+        close cur_neg_homo;
     
+        -- We now do the shuffling so as to generate all the possible combinations
+        
+        -- of conditions
+        commit; -- Commit since there seems to be an Oracle bug, double-reading transactions when WITH is used (like in the suffle).
+        dbms_output.put_line('Shuffling');
+        LOG_UTILS.log_me('Shuffling');
+        
+        SHUFFLE_MAPPING_SET(v_mapping_set);
+    end if;
+        
+        
       declare
                 v_cnt integer := 0;
             begin
@@ -1246,6 +1256,7 @@ procedure GENERATE_VARIANTS (v_mapping_set_id in varchar2, v_new_mapping_set out
                 select *
                 from conditions c
                 where c.variable = h.variable
+                and c.cond_type <> 'LAC_LE' -- excluding the LAC
             ) 
         )
         connect by nocycle (prior variable < variable);
