@@ -347,6 +347,7 @@ procedure SHUFFLE_MAPPING_SET (v_mapping_sets_id in varchar2) as
     
     v_new_mapping_id varchar2(20);
 
+    v_orig_type varchar2(20);
 
 begin
     
@@ -360,8 +361,12 @@ begin
         -- we clone the original mapping, parse the conditions and add them
         mappings_utils.clone_mapping(v_original_mapping_id, v_new_mapping_id);
         
+        -- type of the original mapping
+        select type into v_orig_type from mappings where id = v_original_mapping_id;
+        
         -- shuffled mappings
-        update mappings set type = 'H' where id = v_new_mapping_id;
+        
+        update mappings set type = v_orig_type || 'H' where id = v_new_mapping_id;
         
         -- add the mapping to the mapping set
         insert into mapping_sets (id, mapping) values (v_mapping_sets_id, v_new_mapping_id);
@@ -839,7 +844,7 @@ begin
             insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_pos_mapping_id);
             --dbms_output.put_line('New mapping ' || v_new_pos_mapping_id || ' added to set ' || v_mapping_set);
             
-            update mappings set type = 'P' where id = v_new_pos_mapping_id; -- negative repair
+            update mappings set type = type || 'P' where id = v_new_pos_mapping_id; -- negative repair
 
             
             v_var_pos := 1;
@@ -898,7 +903,7 @@ begin
             insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_neg_mapping_id);
             --dbms_output.put_line('New mapping ' || v_new_pos_mapping_id || ' added to set ' || v_mapping_set);
             
-            update mappings set type = 'N' where id = v_new_neg_mapping_id; -- negative repair
+            update mappings set type = type || 'N' where id = v_new_neg_mapping_id; -- negative repair
 
             
             v_var_neg := 1;
