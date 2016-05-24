@@ -175,6 +175,7 @@ begin
         -- for all the pairs of ambiguous variables there
         -- must hold a order constraint (<=)
         -- delete all the others
+        
         if lac_optimize and XHS = 'LHS' then
             LOG_UTILS.log_me('LAC optimization');
             declare

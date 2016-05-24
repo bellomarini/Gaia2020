@@ -228,8 +228,20 @@ BEGIN
         -- We update the textual description of the template mapping        
         MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_mapping_id);
         
-        dbms_output.put_line('Generated template mapping: ' || v_mapping_id);
-        LOG_UTILS.log_me('Generated template mapping: ' || v_mapping_id);
+        declare
+            v_description varchar2(400);
+        begin
+            select description into v_description
+            from mappings
+            where id = v_mapping_id;
+            
+            dbms_output.put_line('Generated template mapping: ' || v_mapping_id);
+            LOG_UTILS.log_me('Generated template mapping: ' || v_mapping_id);
+            LOG_UTILS.log_me('Generated template mapping: ' || v_description);
+        end;
+        
+
+
         
 END GET_CANONICAL_TEMPLATE_MAPPING;
 
@@ -514,7 +526,8 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                     )
                     
                 ), 
-                POS as ( -- the tree of assignments
+                POS as ( 
+                    -- the tree of assignments
                     -- such that for the ambiguous LHS there are
                     -- extending homo ambiguous in the RHS
                     select distinct l.id, l.variable, l.value
@@ -735,6 +748,9 @@ begin
     TEMPLATE_MAPPINGS_UTILS.ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'RHS');
     
     -- We calculate all the LHS homomorphisms
+    -- We also consider the possibility of laconic optimization
+    -- That is, we limit the number of allowed homomorphisms
+    -- for ambiguous variables
     TEMPLATE_MAPPINGS_UTILS.ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'LHS','',lac_optimize);
     
     LOG_UTILS.log_me('Generating homomorphisms - RHS');
