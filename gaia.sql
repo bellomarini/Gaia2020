@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Monday-May-23-2016   
+--  File created - Tuesday-May-24-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -388,6 +388,15 @@ begin
         
           
     close cur_shuffling;
+    
+    declare
+                v_cnt integer := 0;
+            begin
+                select count(*) into v_cnt 
+                from mapping_sets where id = v_mapping_sets_id;
+                LOG_UTILS.log_me('Cumulative number of repairs: ' || v_cnt);
+            end;
+    
 end SHUFFLE_MAPPING_SET;
 
 
@@ -789,6 +798,14 @@ begin
     end loop;
     close cur_pos_homo;
     
+            declare
+                v_cnt integer := 0;
+            begin
+                select count(*) into v_cnt 
+                from mapping_sets where id = v_mapping_set;
+                LOG_UTILS.log_me('Cumulative number of repairs: ' || v_cnt);
+            end;
+    
     -- %%%% NEGATIVE REPAIRS %%%% --
     dbms_output.put_line('Negative repairs');
     LOG_UTILS.log_me('Generating negative repairs');
@@ -833,6 +850,14 @@ begin
             
         -- we update the mapping description
         MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_neg_mapping_id);
+        
+            declare
+                v_cnt integer := 0;
+            begin
+                select count(*) into v_cnt 
+                from mapping_sets where id = v_mapping_set;
+                LOG_UTILS.log_me('Cumulative number of repairs: ' || v_cnt);
+            end;
         
         -- to return the output
         v_mapping_set_id := v_mapping_set;
@@ -1210,6 +1235,14 @@ begin
         close cur_variants;    
     end loop;
     close cur_all_tm;
+    
+    declare
+            v_cnt integer := 0;
+            begin
+                select count(*) into v_cnt 
+                from mapping_sets where id = v_new_mapping_set;
+                LOG_UTILS.log_me('Cumulative number of repairs: ' || v_cnt);
+            end;
 
 end GENERATE_VARIANTS;
 

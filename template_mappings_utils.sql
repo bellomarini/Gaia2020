@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Monday-May-23-2016   
+--  File created - Tuesday-May-24-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body TEMPLATE_MAPPINGS_UTILS
@@ -175,29 +175,45 @@ begin
         -- for all the pairs of ambiguous variables there
         -- must hold a order constraint (<=)
         -- delete all the others
-        if lac_optimize then
+        if lac_optimize and XHS = 'LHS' then
             LOG_UTILS.log_me('LAC optimization');
+            declare
+                v_cnt integer := 0;
+            begin
+                select count(*) into v_cnt 
+                from homomorphisms where LHS_RHS = 'LHS';
+                LOG_UTILS.log_me('LHS homomorphisms before optimization: ' || v_cnt);
+            end;
+
     
             delete from homomorphisms where id in (
             select distinct h1.id
                 
                 from homomorphisms h1 join homomorphisms h2 on (h1.id = h2.id and h1.variable < h2.variable)
-                join variables_atoms va1 on (h1.variable = va1.variable) 
+                join variables_atoms va1 on (h1.variable = va1.variable) -- pairs of variable, values 
                 join variables_atoms va2 on (h2.variable = va2.variable)
-                
-                join variables_atoms va11 on (va11.atom = va1.atom and va11.position <> va1.position) 
+                join variables_atoms va11 on (va11.atom = va1.atom and va11.position <> va1.position) -- with the respective given variables
                 join variables_atoms va21 on (va21.atom = va2.atom and va21.position <> va2.position)
                 
-                join atoms a1 on (va1.atom = a1.id) join atoms a2 on (va2.atom = a2.id)
+                join atoms a1 on (va1.atom = a1.id) join atoms a2 on (va2.atom = a2.id) -- on the same atom
     
-                
-                where a1.LHS_RHS = 'LHS' and a2.LHS_RHS = 'LHS'
-                and a1.name = a2.name
-                and a1.id <> a2.id -- different atom
-                and va11.variable = va21.variable -- same given variable
-                and va1.position = va2.position -- same position
-                and h1.value > h2.value -- wrong relation between values
+                where 
+                    a1.LHS_RHS = 'LHS' and a2.LHS_RHS = 'LHS' -- both in the LHS
+                    and a1.name = a2.name -- same atom name
+                    and a1.id <> a2.id -- but different specific atoms
+                    and va11.variable = va21.variable -- same given variable
+                    and va1.position = va2.position -- same position
+                    and h1.value > h2.value -- wrong relation between values
             );
+            
+            declare
+                v_cnt integer := 0;
+            begin
+                select count(*) into v_cnt 
+                from homomorphisms where LHS_RHS = 'LHS';
+                LOG_UTILS.log_me('LHS homomorphisms after optimization: ' || v_cnt);
+            end;
+            
         end if;
        
 end ALL_POSSIBLE_HOMOMORPHISMS;
