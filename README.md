@@ -55,17 +55,17 @@ These are the types of mappings we handle in the MAPPINGS table:
 - S : a usual schema mapping
 - C : a canonical template mapping
 - L : a canonical template mapping with laconic repairs
-- P : a template mapping with equalities (first-level variant obtained with a positive repair on a C or a L mapping)
-- N : a template mapping with inequalities (first-level variant obtained with a negative repair on a C or a L mapping)
-- H : a template mapping with equalities and inequalities (first-level variant obtained with a hybrid repair on a C or a L mapping)
-- PV : a template mapping generated as a second-level variant of a positive repair
-- NV : a template mapping generated as a second-level variant of a negative repair
-- HV : a template mapping generated as a second-level variant of a hybrid repair
-- LV : a template mapping generated as a second-level variant of a laconic repair
+- CP : a template mapping with equalities (first-level variant obtained as a positive repair of a canonical template mapping)
+- LP : a template mapping with equalities (first-level variant obtained as a positive repair of a laconic template mapping)
+- CN : a template mapping with inequalities (first-level variant obtained with a negative repair of a canonical template mapping)
+- LN : a template mapping with inequalities (first-level variant obtained with a negative repair of a laconic template mapping)
+- CH : a template mapping with equalities and inequalities (first-level variant obtained with a hybrid repair of a canonical mapping)
+- LH : a template mapping with equalities and inequalities (first-level variant obtained with a hybrid repair of a laconic mapping)
+- [C|L]PV : a template mapping generated as a second-level variant of a positive repair of a canonical or laconic mapping
+- [C|L]NV : a template mapping generated as a second-level variant of a negative repair of a canonical or laconic mapping
+- [C|L]HV : a template mapping generated as a second-level variant of a hybrid repair of a canonical or laconic mapping
+- LV : a template mapping generated as a second-level variant of a laconic mapping
 
-The final set, output of the encoding, contains: P, N, H, PV, NV, HV mappings.
-
- 
 Organization of the repository
 -------------------------------
 
