@@ -54,16 +54,16 @@ These are the types of mappings we handle in the MAPPINGS table:
 
 - S : a usual schema mapping
 - C : a canonical template mapping
-- P : a template mapping with equalities (first-level variant obtained with a positive repair)
-- N : a template mapping with inequalities (first-level variant obtained with a negative repair)
-- H : a template mapping with equalities and inequalities (first-level variant obtained with a hybrid repair)
-- PV : a template mapping generated as a second-level variant of a positive repair
-- NV : a template mapping generated as a second-level variant of a negative repair
-- HV : a template mapping generated as a second-level variant of a hybrid repair
+- L : a canonical template mapping with laconic repairs
+- P : a template mapping with equalities (first-level variant obtained as a positive repair of a canonical template mapping)
+- N : a template mapping with inequalities (first-level variant obtained with a negative repair of a canonical template mapping)
+- H : a template mapping with equalities and inequalities (first-level variant obtained with a hybrid repair of a canonical mapping)
+- PV : a template mapping generated as a second-level variant of a positive repair of a canonical mapping
+- NV : a template mapping generated as a second-level variant of a negative repair of a canonical mapping
+- HV : a template mapping generated as a second-level variant of a hybrid repair of a canonical mapping
+- LV : a template mapping generated as a second-level variant of a laconic mapping
+- CV : a template mapping generated as a second-level variant of a canonical mapping
 
-The final set, output of the encoding, contains: P, N, H, PV, NV, HV mappings.
-
- 
 Organization of the repository
 -------------------------------
 
