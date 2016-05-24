@@ -781,6 +781,9 @@ begin
         
         MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_lac_mapping_id);
         
+        update mappings set type = 'L'
+        where id = v_new_lac_mapping_id;
+        
         open v_lac_cur;
         loop
             fetch v_lac_cur into v_min_var, v_max_var;
