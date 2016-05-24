@@ -425,6 +425,7 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
     v_mapping_set varchar2(20);
     v_new_pos_mapping_id varchar2(20);
     v_new_neg_mapping_id varchar2(20);
+    v_new_lac_mapping_id varchar2(20);
     
     v_path varchar2(1000);
     v_var_val varchar2(200);
@@ -433,6 +434,9 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
     
     v_var_pos integer;
     v_var_neg integer;
+    
+    v_min_var varchar2(30);
+    v_max_var varchar2(30);
 
     cursor cur_homo is
     select id, variable, value from homomorphisms
@@ -728,7 +732,25 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                             );
         
         
-     
+    -- all the ambiguous variables
+     cursor v_lac_cur is 
+     select distinct h1.variable, h2.variable
+                from homomorphisms h1 join homomorphisms h2 on (h1.id = h2.id and h1.variable < h2.variable)
+                join variables_atoms va1 on (h1.variable = va1.variable) -- pairs of variable, values 
+                join variables_atoms va2 on (h2.variable = va2.variable)
+                join variables_atoms va11 on (va11.atom = va1.atom and va11.position <> va1.position) -- with the respective given variables
+                join variables_atoms va21 on (va21.atom = va2.atom and va21.position <> va2.position)
+                
+                join atoms a1 on (va1.atom = a1.id) join atoms a2 on (va2.atom = a2.id) -- on the same atom
+    
+                where 
+                    a1.LHS_RHS = 'LHS' and a2.LHS_RHS = 'LHS' -- both in the LHS
+                    and a1.name = a2.name -- same atom name
+                    and a1.id <> a2.id -- but different specific atoms
+                    and va11.variable = va21.variable -- same given variable
+                    and va1.position = va2.position -- same position
+                    and h1.variable = h2.variable - 1 -- trick to enforce transitivity and avoid redundant conditions
+            ;
     
 begin
         
@@ -743,23 +765,56 @@ begin
     LOG_UTILS.log_me('Generating homomorphisms');
 
     -- We calculate all the RHS homorphisms
-    LOG_UTILS.log_me('Generating homomorphisms - RHS');
 
     TEMPLATE_MAPPINGS_UTILS.ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'RHS');
     
     -- We calculate all the LHS homomorphisms
-    -- We also consider the possibility of laconic optimization
-    -- That is, we limit the number of allowed homomorphisms
-    -- for ambiguous variables
+    -- if lac_optimize then for ambiguous variables
+    -- we consider only the homomorphisms that respect
+    -- the order posed by the respective repair
     TEMPLATE_MAPPINGS_UTILS.ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id,'LHS','',lac_optimize);
+        
+    -- %% LACONIC REPAIR
+    if lac_optimize then
+        dbms_output.put_line('Laconic repair');
+        LOG_UTILS.log_me('Generating laconic repair');
+        
+        MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_lac_mapping_id);
+        
+        open v_lac_cur;
+        loop
+            fetch v_lac_cur into v_min_var, v_max_var;
+            exit when v_lac_cur%notfound;
+            
+            -- we insert the LAC_LE conditions 
+            -- for the ambiguous variables
+            -- in the repair
+            insert into conditions(id, variable, value, cond_type)
+                values (seq_conditions.nextval, 
+                skolem.variables_from_variables_sk(v_min_var, v_new_lac_mapping_id),
+                skolem.variables_from_variables_sk(v_max_var, v_new_lac_mapping_id),
+                'LAC_LE');
+        end loop;
+        close v_lac_cur;
+        LOG_UTILS.log_me('Laconic mapping: ' || v_new_lac_mapping_id);
+        
+    else -- if lac are not needed, then it coincides with the original one
+        v_new_lac_mapping_id := v_mapping_id;
+    end if;
     
-    LOG_UTILS.log_me('Generating homomorphisms - RHS');
-
+    -- we update the mapping description
+    MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_new_lac_mapping_id);
+    
     -- we create the new mapping set
     select seq_mapping_sets.nextval into v_mapping_set from dual;
     dbms_output.put_line('Generating repaired set : ' || v_mapping_set);
     LOG_UTILS.log_me('Generating repaired set : ' || v_mapping_set);
     
+
+    -- to return the output
+    v_mapping_set_id := v_mapping_set;
+    
+
     -- %%%% POSITIVE REPAIRS %%%% --
     dbms_output.put_line('Positive repairs');
 
@@ -776,7 +831,7 @@ begin
     
         fetch cur_pos_homo into v_path;
         exit when cur_pos_homo%notfound;
-            MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_pos_mapping_id);
+            MAPPINGS_UTILS.CLONE_MAPPING(v_new_lac_mapping_id, v_new_pos_mapping_id);
             
             insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_pos_mapping_id);
             --dbms_output.put_line('New mapping ' || v_new_pos_mapping_id || ' added to set ' || v_mapping_set);
@@ -835,7 +890,7 @@ begin
     
         fetch cur_neg_homo into v_path;
         exit when cur_neg_homo%notfound;
-            MAPPINGS_UTILS.CLONE_MAPPING(v_mapping_id, v_new_neg_mapping_id);
+            MAPPINGS_UTILS.CLONE_MAPPING(v_new_lac_mapping_id, v_new_neg_mapping_id);
             
             insert into mapping_sets(id, mapping) values (v_mapping_set, v_new_neg_mapping_id);
             --dbms_output.put_line('New mapping ' || v_new_pos_mapping_id || ' added to set ' || v_mapping_set);
@@ -890,6 +945,25 @@ begin
     
     SHUFFLE_MAPPING_SET(v_mapping_set);
     
+      declare
+                v_cnt integer := 0;
+            begin
+                select count(*) into v_cnt 
+                from mapping_sets where id = v_mapping_set;
+                LOG_UTILS.log_me('Cumulative number of repairs: ' || v_cnt);
+                
+                -- if now we still have 0 repairs, then we must
+                -- copy the original mapping into the repairs for
+                -- the following phases
+                if v_cnt = 0 then
+                    LOG_UTILS.log_me('Just copying the canonical (or laconic) into the set');
+
+                    insert into mapping_sets(id, mapping)
+                        values (v_mapping_set, v_new_lac_mapping_id);
+                
+                end if;
+            end;
+        
 end GET_REPAIRED_TEMPLATE_MAPPINGS;
 
 

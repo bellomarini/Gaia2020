@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Thursday-May-12-2016   
+--  File created - Tuesday-May-24-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body MAPPINGS_UTILS
@@ -167,7 +167,11 @@ select lhs_rhs, a.name as "ATOM", a.id as "ATOM_ID", v.name as "VARIABLE"
     order by lhs_rhs, a.id, va.position;
 
 cursor cur_conditions is
-select v.name, case when cond_type = 'EQ' then '=' else '<>' end, cond.value
+select v.name, case when cond_type = 'EQ' then '=' 
+                    when cond_type = 'NEQ' then '<>' 
+                    when cond_type = 'LAC_LE' then '<='
+                    end, 
+                cond.value
 from conditions cond join variables v on (cond.variable = v.id)
 where v.mapping = v_mapping_id;
     
@@ -203,7 +207,11 @@ loop
         loop
         fetch cur_conditions into v_cond_var, v_cond_op, v_cond_val;
         exit when cur_conditions%notfound;
-            v_mapping_string := v_mapping_string || ','||v_cond_var||v_cond_op||'"'||v_cond_val||'"';
+            if v_cond_op <> '<=' then
+                v_mapping_string := v_mapping_string || ','||v_cond_var||v_cond_op||'"'||v_cond_val||'"';
+            else
+                v_mapping_string := v_mapping_string || ','||v_cond_var||v_cond_op||'var'||v_cond_val||'';
+            end if;
         end loop;
         close cur_conditions;
         
@@ -276,7 +284,21 @@ begin
         where variable in (
             select id
             from variables
-            where mapping = v_mapping_id);
+            where mapping = v_mapping_id)
+        and cond_type <> 'LAC_LE';
+    
+    insert into conditions(id, variable, value, cond_type)
+        select 
+            seq_conditions.nextval, 
+            skolem.variables_from_variables_sk(variable, v_new_mapping_id),
+            skolem.variables_from_variables_sk(value, v_new_mapping_id), cond_type
+        from conditions
+        where variable in (
+            select id
+            from variables
+            where mapping = v_mapping_id)
+        and cond_type = 'LAC_LE'; 
+        
 end CLONE_MAPPING;
 
 procedure UPDATE_DESCRIPTION(v_mapping_id in varchar2) as

@@ -175,6 +175,10 @@ begin
         -- for all the pairs of ambiguous variables there
         -- must hold a order constraint (<=)
         -- delete all the others
+        -- here we do not use the stored metadata for the conditions,
+        -- but just find again the conditions.
+        -- There is some code duplication, but allows to avoid multiple
+        -- calculations of the homomorphisms.
         
         if lac_optimize and XHS = 'LHS' then
             LOG_UTILS.log_me('LAC optimization');
@@ -185,8 +189,7 @@ begin
                 from homomorphisms where LHS_RHS = 'LHS';
                 LOG_UTILS.log_me('LHS homomorphisms before optimization: ' || v_cnt);
             end;
-
-    
+            
             delete from homomorphisms where id in (
             select distinct h1.id
                 
