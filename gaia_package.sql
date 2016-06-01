@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Monday-May-23-2016   
+--  File created - Wednesday-June-01-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package GAIA
@@ -30,7 +30,7 @@ procedure MERGE_MAPPING_SETS (v_mapping_set_id1 in varchar2, v_mapping_set_id2 i
 
 -- It takes as input a mapping set and produces a new mapping set with
 -- all the possible variants (including the original ones)
-procedure GENERATE_VARIANTS (v_mapping_set_id in varchar2, v_new_mapping_set out varchar2);
+procedure GENERATE_VARIANTS (v_mapping_set_id in varchar2, v_new_mapping_set out varchar2, lac_optimize boolean default false);
 
 -- We take as input a list schema mappings (separated by ";"), all from S to T and do the following:
 -- 1)

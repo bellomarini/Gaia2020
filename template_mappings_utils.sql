@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Tuesday-May-24-2016   
+--  File created - Wednesday-June-01-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body TEMPLATE_MAPPINGS_UTILS
@@ -70,19 +70,20 @@ cursor cur_homo is
            -- and must be discarded
                 with var_val as (
                  select distinct pv.value, va.variable
-                    from possible_values pv, variables_atoms va, atoms a,
-                                             variables_atoms g_va, atoms g_a
-                    where va.atom = a.id
-                    and a.mapping = v_mapping_id
-                    and a.name = pv.atom_name
+                    from possible_values pv, atoms a, variables_atoms va, variables_atoms g_va, atoms g_a
+                    where 
+                        a.name = pv.atom_name
+                    and va.atom = a.id    
                     and pv.position = va.position
+                    and a.mapping = v_mapping_id
                     and a.LHS_RHS = XHS
-                    and g_va.atom = a.id
-                    and g_va.atom = g_a.id
-                    and g_a.mapping = v_mapping_id
+                    
                     and g_a.name = pv.atom_name
+                    and g_va.atom = g_a.id
                     and (g_va.position = pv.given_pos or pv.given_pos is null)
+                    and g_a.mapping = v_mapping_id                    
                     and (g_a.LHS_RHS = XHS or pv.given_pos is null)
+                    
                     and not exists ( -- exclude the equal values that are forbidden by the inequalities
                         select * 
                         from conditions c
@@ -96,7 +97,7 @@ cursor cur_homo is
                         where c.variable = va.variable
                         and c.cond_type = 'EQ'
                         and c.value <> pv.value
-                    )
+                    ) 
         ), tree as ( select distinct sys_connect_by_path(variable||':'||value,'/') as PATH, LEVEL
             from var_val
             where connect_by_isleaf = 1
@@ -173,19 +174,16 @@ begin
         
         -- LAC optimization
         -- for all the pairs of ambiguous variables there
-        -- must hold a order constraint (<=)
+        -- must hold an order constraint (<=)
         -- delete all the others
-        -- here we do not use the stored metadata for the conditions,
-        -- but just find again the conditions.
-        -- There is some code duplication, but allows to avoid multiple
-        -- calculations of the homomorphisms.
+        -- TODO: using the conditions
         
         if lac_optimize and XHS = 'LHS' then
             LOG_UTILS.log_me('LAC optimization');
             declare
                 v_cnt integer := 0;
             begin
-                select count(*) into v_cnt 
+                select count(distinct id) into v_cnt 
                 from homomorphisms where LHS_RHS = 'LHS';
                 LOG_UTILS.log_me('LHS homomorphisms before optimization: ' || v_cnt);
             end;
@@ -193,13 +191,15 @@ begin
             delete from homomorphisms where id in (
             select distinct h1.id
                 
-                from homomorphisms h1 join homomorphisms h2 on (h1.id = h2.id and h1.variable < h2.variable)
+                from homomorphisms h1 join homomorphisms h2 on (h1.id = h2.id and h1.variable <> h2.variable)
                 join variables_atoms va1 on (h1.variable = va1.variable) -- pairs of variable, values 
                 join variables_atoms va2 on (h2.variable = va2.variable)
                 join variables_atoms va11 on (va11.atom = va1.atom and va11.position <> va1.position) -- with the respective given variables
                 join variables_atoms va21 on (va21.atom = va2.atom and va21.position <> va2.position)
                 
                 join atoms a1 on (va1.atom = a1.id) join atoms a2 on (va2.atom = a2.id) -- on the same atom
+                -- there is a condition
+                join conditions c on (c.variable = h1.variable and c.value = h2.variable and c.cond_type = 'LAC_LE')
     
                 where 
                     a1.LHS_RHS = 'LHS' and a2.LHS_RHS = 'LHS' -- both in the LHS
@@ -209,16 +209,15 @@ begin
                     and va1.position = va2.position -- same position
                     and h1.value > h2.value -- wrong relation between values
             );
-            
-            declare
-                v_cnt integer := 0;
-            begin
-                select count(*) into v_cnt 
-                from homomorphisms where LHS_RHS = 'LHS';
-                LOG_UTILS.log_me('LHS homomorphisms after optimization: ' || v_cnt);
-            end;
-            
         end if;
+        
+        declare
+            v_cnt integer := 0;
+        begin
+            select count(distinct id) into v_cnt 
+            from homomorphisms where LHS_RHS = 'LHS';
+            LOG_UTILS.log_me('Total number of homomorphisms: ' || v_cnt);
+        end;
        
 end ALL_POSSIBLE_HOMOMORPHISMS;
 

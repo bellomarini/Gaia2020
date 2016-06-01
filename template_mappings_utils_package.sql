@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Monday-May-23-2016   
+--  File created - Wednesday-June-01-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package TEMPLATE_MAPPINGS_UTILS
@@ -26,6 +26,8 @@ function EXTENSION_TEST(v_mapping_id1 in varchar2, v_mapping_id2 varchar2) retur
 -- if none extends to the other --> null
 procedure MERGE_TEMPLATE_MAPPINGS(v_mapping_id1 in varchar2, v_mapping_id2 in varchar2, v_mapping_sets_id out varchar2);
 
+
+procedure POPULATE_POSSIBLE_VALUES(v_target_eschema in varchar2);
 
 END TEMPLATE_MAPPINGS_UTILS;
 
