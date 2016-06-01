@@ -829,21 +829,17 @@ procedure GET_REPAIRED_TEMPLATE_MAPPINGS (v_mapping_id in varchar2, v_mapping_se
                     -- only the pairs in the extending homomorphisms
                     -- that are the ones such that
                     select distinct l.id, l.variable, l.value
-                    from L_PAIRS l 
-                    where exists ( -- there are no assignments
-                        select * from homomorphisms h2, homomorphisms h3
-                        where h2.id <> h3.id
-                        and h2.id = l.id
-                        and h2.LHS_RHS = 'LHS'
+                    from L_PAIRS l, homomorphisms h3
+                     
+                        where l.id <> h3.id
                         and h3.LHS_RHS = 'RHS'
                         and not exists (
                             select * from homomorphisms h4 -- that violate one in
-                            where h4.variable = h2.variable -- the RHS
+                            where h4.variable = l.variable -- the RHS
                             and h4.id = h3.id
-                            and h4.value <> h2.value
-                        ) and h2.LHS_RHS = 'LHS'
-                        and h2.id = l.id
-                    )  
+                            and h4.value <> l.value
+                        ) 
+                      
                 ),
                 tree2 as(
                 select distinct id, variable, value, count(*) over (partition by id) as cnt

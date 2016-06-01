@@ -9,7 +9,7 @@ DECLARE
     -- Semicolon-separated schema mappings of the transformation scenario
     V_MAPPING_LIST varchar2(200) := 'BANKS(i,x,y,z,k)->G1(i,x),G2(i,y),G3(i,z)';
     -- Second-level variants
-    V_ENABLE_SECOND_LEVEL_VARIANTS boolean := FALSE;
+    V_ENABLE_SECOND_LEVEL_VARIANTS boolean := TRUE;
     -- LAC OPTIMIZATION
     V_LAC_OPTIMIZE boolean := TRUE;
     

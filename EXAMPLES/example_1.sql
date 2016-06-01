@@ -9,7 +9,7 @@ DECLARE
     -- Semicolon-separated schema mappings of the transformation scenario
     V_MAPPING_LIST varchar2(200) := 'TEST_TABLE_2(i,x,y,z,k)->TEST_TABLE(x,k)';
     -- Second-level variants
-    V_ENABLE_SECOND_LEVEL_VARIANTS boolean := TRUE;
+    V_ENABLE_SECOND_LEVEL_VARIANTS boolean := FALSE;
     -- LAC OPTIMIZATION
     V_LAC_OPTIMIZE boolean := TRUE;
     
