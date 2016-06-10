@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Wednesday-June-01-2016   
+--  File created - Friday-June-10-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -1116,11 +1116,9 @@ begin
         
 end GET_REPAIRED_TEMPLATE_MAPPINGS;
 
-
-
--- It verifies if a mapping appropriately applies
--- to a source and a target schema
-function VERIFY_BINDING(v_mapping_id in varchar2, v_database_source_schema varchar2, v_database_target_schema varchar2) return boolean
+-- it verifies that XHS of a mapping appropriately
+-- applies to a schema
+function VERIFY_BINDING_XHS(v_mapping_id in varchar2, v_database_schema varchar2, v_XHS varchar2) return boolean
 as
 v_atom_name varchar2(20);
 v_atom_id varchar2(20);
@@ -1128,10 +1126,8 @@ v_lhs_rhs varchar2(3);
 v_vars_no integer;
 v_cols_no integer;
 
-    -- Query to verify if some relations in the LHS
-    -- are not present in the source schema (with the atom name and as many variables as the attributes)
-    -- and if some relations in the RHS are not present in the target schema (with the atom name and as
-    -- many variables as the attributes).
+    -- Query to verify if some relations in the XHS
+    -- are not present in the schema (with the atom name and as many variables as the attributes).
     cursor verify_binding is
     select B.ATOM_ID, B.ATOM_NAME, B.LHS_RHS, B.VARS_NO, A.COLS_NO
     from
@@ -1145,8 +1141,8 @@ v_cols_no integer;
     where
         a.name = tab.table_name
         and a.mapping=v_mapping_id
-        and ((tab.owner = v_database_source_schema and a.LHS_RHS='LHS') or (tab.owner = v_database_target_schema and a.LHS_RHS='RHS'))
-        and ((tab.owner = v_database_source_schema and a.LHS_RHS='LHS') or (tab.owner = v_database_target_schema and a.LHS_RHS='RHS'))
+        and (tab.owner = v_database_schema and a.LHS_RHS=v_XHS)
+        and (tab.owner = v_database_schema and a.LHS_RHS=v_XHS)
         and cols.table_name = tab.table_name
     group by a.name, a.LHS_RHS) A,
     (select 
@@ -1162,7 +1158,7 @@ v_cols_no integer;
     group by a.id, a.name, a.LHS_RHS) B
     where A.TABLE_NAME = B.ATOM_NAME
     and A.LHS_RHS = B.LHS_RHS;
-
+    
 begin
 
     open verify_binding;
@@ -1181,27 +1177,36 @@ begin
 
     dbms_output.put_line('Mapping consistent with database schemas');
     return true;
+    
+END VERIFY_BINDING_XHS;
+
+
+-- It verifies if a mapping appropriately applies
+-- to a source and a target schema
+function VERIFY_BINDING(v_mapping_id in varchar2, v_database_source_schema varchar2, v_database_target_schema varchar2) return boolean as
+begin
+    return 
+        VERIFY_BINDING_XHS(v_mapping_id, v_database_source_schema, 'LHS')
+        and
+        VERIFY_BINDING_XHS(v_mapping_id, v_database_target_schema, 'RHS');
+
 END VERIFY_BINDING;
 
 
+procedure GENERATE_ESCHEMAS_FROM_XHS (v_mapping_id in varchar2, v_database_schema varchar2, v_XHS varchar2, v_eschema out integer) as
 
+    check_ok boolean := true;
+    v_eschema_id varchar2(20);
 
-procedure GENERATE_ESCHEMAS(v_mapping_id in varchar2, v_database_source_schema varchar2, v_database_target_schema varchar2, v_eschema1 out integer, v_eschema2 out integer) as
-
-check_ok boolean := true;
-v_source_eschema_id varchar2(20);
-v_target_eschema_id varchar2(20);
-begin    
+begin
     -- We verify if the mapping correctly binds to the schemas
-    check_ok := VERIFY_BINDING(v_mapping_id, v_database_source_schema, v_database_target_schema);
+    check_ok := VERIFY_BINDING_XHS(v_mapping_id, v_database_schema, v_XHS);
     -- Then, we encode the mapping
-
+    
     -- ids for the new eschemas
-    select seq_eschemas.nextval into v_source_eschema_id from dual;
-    v_eschema1 := v_source_eschema_id;
-    select seq_eschemas.nextval into v_target_eschema_id from dual;
-    v_eschema2 := v_target_eschema_id;
-
+    select seq_eschemas.nextval into v_eschema_id from dual;
+    v_eschema := v_eschema_id;
+    
     -- for each ATOM a --> RELATION r
     --  for each VARIABLE v in a --> ATTRIBUTE att in r named after the variable (for the non keys)
     --  for each VARIABLE v in a --> KEY key in r named after the variable (for the keys)
@@ -1210,35 +1215,30 @@ begin
     -- for each atom we create a relation
     -- creating a distinct relation for each atom name.
     insert into relations(id, name, eschema)
-    select distinct case LHS_RHS when 'LHS' then skolem.relations_from_atoms_sk(a.name,v_source_eschema_id)
-                        when 'RHS' then skolem.relations_from_atoms_sk(a.name,v_target_eschema_id) end,
-           name, 
-           case LHS_RHS when 'LHS' then v_source_eschema_id
-                        when 'RHS' then v_target_eschema_id end
+    select distinct skolem.relations_from_atoms_sk(a.name,v_eschema_id), name, v_eschema_id
     from atoms a
-    where mapping = v_mapping_id;
+    where mapping = v_mapping_id
+    and LHS_RHS = v_XHS;
     
     -- for each variable position of each atom 
     -- we create an attribute and connect it to
     -- the right relation
     -- if it is not a key attribute
     insert into attributes(id, name, relation, position)
-    select case LHS_RHS when 'LHS' then skolem.attributes_from_variables_sk(a.name,va.position, v_source_eschema_id)
-                        when 'RHS' then skolem.attributes_from_variables_sk(a.name,va.position, v_target_eschema_id) end, 
-                        v.name as name,
-           case LHS_RHS when 'LHS' then skolem.relations_from_atoms_sk(a.name, v_source_eschema_id)
-                        when 'RHS' then skolem.relations_from_atoms_sk(a.name, v_target_eschema_id) end,
-           va.position
+    select skolem.attributes_from_variables_sk(a.name,va.position, v_eschema_id),
+            v.name as name,
+            skolem.relations_from_atoms_sk(a.name, v_eschema_id),
+            va.position
     from variables v join variables_atoms va on (v.id = va.variable)
         join atoms a on (va.atom = a.id)
     where
     a.mapping = v_mapping_id
+    and LHS_RHS = v_XHS
     and not exists (
         select *
         from all_cons_columns cons
         where
-            cons.column_name = (case LHS_RHS when 'LHS' then CATALOG_UTILS.get_column_name_in_position(v_database_source_schema, a.name, va.position)
-                                             when 'RHS' then CATALOG_UTILS.get_column_name_in_position(v_database_target_schema, a.name, va.position) end)
+            cons.column_name = (CATALOG_UTILS.get_column_name_in_position(v_database_schema, a.name, va.position))
             and cons.constraint_name like '%PK'
     );
     
@@ -1247,22 +1247,20 @@ begin
     -- the right relation
     -- if it is a key attribute
     insert into keys(id, name, relation, position)
-    select case LHS_RHS when 'LHS' then skolem.keys_from_variables_sk(a.name, va.position,v_source_eschema_id)
-                        when 'RHS' then skolem.keys_from_variables_sk(a.name, va.position, v_target_eschema_id) end,
+    select skolem.keys_from_variables_sk(a.name, va.position,v_eschema_id),
                         v.name as name,
-                        case LHS_RHS when 'LHS' then skolem.relations_from_atoms_sk(a.name, v_source_eschema_id)
-                         when 'RHS' then skolem.relations_from_atoms_sk(a.name, v_target_eschema_id) end,
-            va.position
+                        skolem.relations_from_atoms_sk(a.name, v_eschema_id),
+                        va.position
     from variables v join variables_atoms va on (v.id = va.variable)
         join atoms a on (va.atom = a.id)
     where
     a.mapping = v_mapping_id
+    and LHS_RHS = v_XHS
     and exists (
         select *
         from all_cons_columns cons
         where
-            cons.column_name = (case LHS_RHS when 'LHS' then CATALOG_UTILS.get_column_name_in_position(v_database_source_schema, a.name, va.position)
-                                             when 'RHS' then CATALOG_UTILS.get_column_name_in_position(v_database_target_schema, a.name, va.position) end)
+            cons.column_name = (CATALOG_UTILS.get_column_name_in_position(v_database_schema, a.name, va.position))
             and cons.constraint_name like '%PK'
     );
     
@@ -1280,7 +1278,7 @@ begin
         all_cons_columns cons,
         all_constraints c1, all_constraints c2
     where 
-        a1.eschema = v_source_eschema_id
+        a1.eschema = v_eschema_id
         and a1.eschema = a2.eschema
         and a1.id<>a2.id
         and cons.table_name = a1.name
@@ -1290,10 +1288,126 @@ begin
         and c2.table_name = a2.name
         and att.relation = a1.id
         and c1.owner = c2.owner
-        and (c1.owner = v_database_source_schema or c1.owner = v_database_target_schema)
+        and (c1.owner = v_database_schema)
         and att.position = catalog_utils.get_column_position_by_name(c1.owner, a1.name, cons.column_name);
         -- selezionare la variabile per posizione
         -- selezionare l'attributo dalla variabile
+    
+
+end GENERATE_ESCHEMAS_FROM_XHS;
+
+procedure GENERATE_ESCHEMAS(v_mapping_id in varchar2, v_database_source_schema varchar2, v_database_target_schema varchar2, v_eschema1 out integer, v_eschema2 out integer) as
+begin
+    -- generates eschema for both LHS and RHS
+    GENERATE_ESCHEMAS_FROM_XHS(v_mapping_id, v_database_source_schema, 'LHS', v_eschema1);
+    GENERATE_ESCHEMAS_FROM_XHS(v_mapping_id, v_database_source_schema, 'RHS', v_eschema2);
+
+--check_ok boolean := true;
+--v_source_eschema_id varchar2(20);
+--v_target_eschema_id varchar2(20);
+--begin    
+--    -- We verify if the mapping correctly binds to the schemas
+--    check_ok := VERIFY_BINDING(v_mapping_id, v_database_source_schema, v_database_target_schema);
+--    -- Then, we encode the mapping
+--
+--    -- ids for the new eschemas
+--    select seq_eschemas.nextval into v_source_eschema_id from dual;
+--    v_eschema1 := v_source_eschema_id;
+--    select seq_eschemas.nextval into v_target_eschema_id from dual;
+--    v_eschema2 := v_target_eschema_id;
+--
+--    -- for each ATOM a --> RELATION r
+--    --  for each VARIABLE v in a --> ATTRIBUTE att in r named after the variable (for the non keys)
+--    --  for each VARIABLE v in a --> KEY key in r named after the variable (for the keys)
+--    --  for any two ATOMS a1 a2 linked by a FK in the database schema f --> FK
+--    
+--    -- for each atom we create a relation
+--    -- creating a distinct relation for each atom name.
+--    insert into relations(id, name, eschema)
+--    select distinct case LHS_RHS when 'LHS' then skolem.relations_from_atoms_sk(a.name,v_source_eschema_id)
+--                        when 'RHS' then skolem.relations_from_atoms_sk(a.name,v_target_eschema_id) end,
+--           name, 
+--           case LHS_RHS when 'LHS' then v_source_eschema_id
+--                        when 'RHS' then v_target_eschema_id end
+--    from atoms a
+--    where mapping = v_mapping_id;
+--    
+--    -- for each variable position of each atom 
+--    -- we create an attribute and connect it to
+--    -- the right relation
+--    -- if it is not a key attribute
+--    insert into attributes(id, name, relation, position)
+--    select case LHS_RHS when 'LHS' then skolem.attributes_from_variables_sk(a.name,va.position, v_source_eschema_id)
+--                        when 'RHS' then skolem.attributes_from_variables_sk(a.name,va.position, v_target_eschema_id) end, 
+--                        v.name as name,
+--           case LHS_RHS when 'LHS' then skolem.relations_from_atoms_sk(a.name, v_source_eschema_id)
+--                        when 'RHS' then skolem.relations_from_atoms_sk(a.name, v_target_eschema_id) end,
+--           va.position
+--    from variables v join variables_atoms va on (v.id = va.variable)
+--        join atoms a on (va.atom = a.id)
+--    where
+--    a.mapping = v_mapping_id
+--    and not exists (
+--        select *
+--        from all_cons_columns cons
+--        where
+--            cons.column_name = (case LHS_RHS when 'LHS' then CATALOG_UTILS.get_column_name_in_position(v_database_source_schema, a.name, va.position)
+--                                             when 'RHS' then CATALOG_UTILS.get_column_name_in_position(v_database_target_schema, a.name, va.position) end)
+--            and cons.constraint_name like '%PK'
+--    );
+--    
+--    -- for each variable position of each atom 
+--    -- we create an attribute and connect it to
+--    -- the right relation
+--    -- if it is a key attribute
+--    insert into keys(id, name, relation, position)
+--    select case LHS_RHS when 'LHS' then skolem.keys_from_variables_sk(a.name, va.position,v_source_eschema_id)
+--                        when 'RHS' then skolem.keys_from_variables_sk(a.name, va.position, v_target_eschema_id) end,
+--                        v.name as name,
+--                        case LHS_RHS when 'LHS' then skolem.relations_from_atoms_sk(a.name, v_source_eschema_id)
+--                         when 'RHS' then skolem.relations_from_atoms_sk(a.name, v_target_eschema_id) end,
+--            va.position
+--    from variables v join variables_atoms va on (v.id = va.variable)
+--        join atoms a on (va.atom = a.id)
+--    where
+--    a.mapping = v_mapping_id
+--    and exists (
+--        select *
+--        from all_cons_columns cons
+--        where
+--            cons.column_name = (case LHS_RHS when 'LHS' then CATALOG_UTILS.get_column_name_in_position(v_database_source_schema, a.name, va.position)
+--                                             when 'RHS' then CATALOG_UTILS.get_column_name_in_position(v_database_target_schema, a.name, va.position) end)
+--            and cons.constraint_name like '%PK'
+--    );
+--    
+--    -- for each pairs of relations in the source and target eschema, if the corresponding
+--    -- Oracle relations have a fkey, then create a fk in the metamodel
+--    insert into fkeys(id, from_column, to_relation)
+--    select 
+--        seq_fkeys.nextval, 
+--        att.id as CHILD_ATT_ID,
+--        a2.id as PARENT_ID
+--    from 
+--        relations a1,
+--        relations a2,
+--        attributes att,
+--        all_cons_columns cons,
+--        all_constraints c1, all_constraints c2
+--    where 
+--        a1.eschema = v_source_eschema_id
+--        and a1.eschema = a2.eschema
+--        and a1.id<>a2.id
+--        and cons.table_name = a1.name
+--        and c1.constraint_name = cons.constraint_name
+--        and c1.constraint_type = 'R'
+--        and c2.constraint_name = c1.r_constraint_name
+--        and c2.table_name = a2.name
+--        and att.relation = a1.id
+--        and c1.owner = c2.owner
+--        and (c1.owner = v_database_source_schema or c1.owner = v_database_target_schema)
+--        and att.position = catalog_utils.get_column_position_by_name(c1.owner, a1.name, cons.column_name);
+--        -- selezionare la variabile per posizione
+--        -- selezionare l'attributo dalla variabile
   
 end GENERATE_ESCHEMAS;
 
