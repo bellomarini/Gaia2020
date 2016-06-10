@@ -1740,6 +1740,66 @@ begin
 
 end encode;
 
+
+procedure encode_relational_query(v_query_string in clob, v_database_schema in varchar2, v_eschema out varchar2) as
+
+    v_mapping_id varchar2(150);
+begin
+        -- parse the single query as a LHS-only mapping
+        MAPPINGS_UTILS.PARSE_MAPPING(
+            V_MAPPING_STRING => v_query_string,
+            V_MAPPING_ID => V_MAPPING_ID
+        );
+        
+        -- and generate the e-schema for it
+        GAIA.GENERATE_ESCHEMAS_FROM_XHS (v_mapping_id, v_database_schema, 'LHS', v_eschema);
+        
+end encode_relational_query;
+
+procedure search_transformation(v_query varchar2, v_database_schema varchar2, v_source_target_both varchar2) as
+    v_eschema_out varchar2(20);
+    v_mapping_id varchar2(20);
+    v_specificity number;
+    v_counter integer := 0;
+    v_maps_cnt integer;
+    
+    cursor cur_search is
+    select id from mappings
+    where type in ('L','CP','CN','CH','CPV','CNV','CHV','LV','CV');
+    
+BEGIN
+
+    select count(*) into v_maps_cnt from mappings
+    where type in ('L','CP','CN','CH','CPV','CNV','CHV','LV','CV');
+
+    LOG_UTILS.log_me('SEARCH: encoding the relational query');
+    -- we encode the input query that selects a portion
+    -- of the schema to search for
+    GAIA.encode_relational_query(v_query, v_database_schema, v_eschema_out);
+    LOG_UTILS.log_me('Start searching among ' || v_maps_cnt || ' mappings.');
+    
+    delete from mapping_specificity;
+
+    -- now I have to return the mappings that are suitable for the input
+    -- schema, ranked by their specificity.
+    open cur_search;
+    loop
+    v_counter := v_counter + 1;
+    fetch cur_search into v_mapping_id;
+    exit when cur_search%notfound;
+        -- we calculate the specificity of the mapping for the eschema
+        LOG_UTILS.log_me('Analyzing mapping ' || v_mapping_id || ' (' || v_counter || '/' || v_maps_cnt || ')');
+
+        v_specificity := TEMPLATE_MAPPINGS_UTILS.mapping_specificity(v_mapping_id, 'LHS', v_eschema_out);
+        -- we store the specificity of the mappings we have analyzed
+        insert into mapping_specificity (mapping, spec_lhs) values (v_mapping_id, v_specificity);
+    end loop;
+    close cur_search;
+    
+    LOG_UTILS.log_me('Search completed');
+
+END;
+
 END GAIA;
 
 /

@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Wednesday-June-01-2016   
+--  File created - Friday-June-10-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package TEMPLATE_MAPPINGS_UTILS
@@ -14,9 +14,19 @@
 -- lac_optimize if the laconic mapping optimization is enabled
 procedure ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id in varchar2, XHS in varchar2, v_chosen_eschema in varchar2 := null, lac_optimize boolean default false);
 
+-- It takes as input a mapping, 'LHS' or 'RHS' for that mapping
+-- and an e-schema and returns a specificity measure, that is,
+-- how the mapping is specific for the given eschema.
+-- It is computed by counting the possible homomorphisms
+function mapping_specificity(v_mapping_id in varchar2, v_XHS in varchar2, v_eschema in varchar2) return number;
+
 -- It takes as input two template mappings and returns the outcome of the extension test.
 -- It returns true if TM1 extends to TM2, false otherwise
 function EXTENSION_TEST(v_mapping_id1 in varchar2, v_mapping_id2 varchar2) return boolean;
+
+-- Overloaded varchar2 version 'Y' or 'N'
+function EXTENSION_TEST_STR(v_mapping_id1 in varchar2, v_mapping_id2 varchar2) return varchar2;
+
 
 -- It returns a set of template mappings, obtained as the
 -- merge of the two mappings passed as parameters

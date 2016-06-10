@@ -77,6 +77,9 @@ Organization of the repository
 TODO
 ----
 
+* Attention: LAC mappings should have < and not <= (just correct the string,
+	the check is now ok)
+
 * Indexing
   - index the mappings in the repository with <=s (Arenas)
   - index the mappings in the repository with <=t (Arenas)

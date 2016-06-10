@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Tuesday-May-24-2016   
+--  File created - Friday-June-10-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Table MAPPINGS
@@ -22,6 +22,15 @@
    COMMENT ON COLUMN "GAIA"."MAPPINGS"."TARGET_SCHEMA" IS 'Populated only in case of canonical template mapping (C).';
    COMMENT ON COLUMN "GAIA"."MAPPINGS"."TYPE" IS 'S: schema mapping, C: canonical template mapping, R: repaired canonical template mapping';
    COMMENT ON COLUMN "GAIA"."MAPPINGS"."REPAIR_REF" IS 'if it is a repaired template mapping, it refers to the respective template mapping';
+--------------------------------------------------------
+--  DDL for Index MAPPINGS_INDEX2
+--------------------------------------------------------
+
+  CREATE INDEX "GAIA"."MAPPINGS_INDEX2" ON "GAIA"."MAPPINGS" ("TYPE") 
+  PCTFREE 10 INITRANS 2 MAXTRANS 255 COMPUTE STATISTICS 
+  STORAGE(INITIAL 65536 NEXT 1048576 MINEXTENTS 1 MAXEXTENTS 2147483645
+  PCTINCREASE 0 FREELISTS 1 FREELIST GROUPS 1 BUFFER_POOL DEFAULT FLASH_CACHE DEFAULT CELL_FLASH_CACHE DEFAULT)
+  TABLESPACE "SYSTEM" ;
 --------------------------------------------------------
 --  DDL for Index MAPPING_PK
 --------------------------------------------------------

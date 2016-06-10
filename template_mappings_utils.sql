@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Wednesday-June-01-2016   
+--  File created - Friday-June-10-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body TEMPLATE_MAPPINGS_UTILS
@@ -52,6 +52,34 @@ begin
 
 end POPULATE_POSSIBLE_VALUES;
 
+function mapping_specificity(v_mapping_id in varchar2, v_XHS in varchar2, v_eschema in varchar2) return number as
+
+    v_cnt integer; -- the number of homomorphisms;
+    v_specificity number; -- the affinity between the mapping and the eschema
+    v_lac boolean := true;
+    
+begin
+    delete from homomorphisms;
+    -- we generate all the possible
+    -- homomorphisms from the XHS of the mapping of
+    -- interest to the e_schema
+    TEMPLATE_MAPPINGS_UTILS.all_possible_homomorphisms(v_mapping_id, v_XHS, v_eschema, v_lac);
+    
+    select count(distinct id) into v_cnt 
+    from homomorphisms;
+    
+    -- the affinity
+    -- is the inverse of the number of homomorphisms
+    -- 
+    if v_cnt = 0 then
+        v_specificity := 0;
+    else
+        v_specificity := 1/v_cnt;
+    end if;
+    
+    return v_specificity;
+    
+end mapping_specificity;
 
 procedure ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id in varchar2, XHS in varchar2, v_chosen_eschema in varchar2 := null, lac_optimize boolean default false) as
     path varchar2(200);
@@ -123,10 +151,10 @@ begin
     end if;
     
     -- calculates all the atomic homomorphisms
-    LOG_UTILS.log_me('Generating the possible values for eschema ' || v_eschema);
+    --LOG_UTILS.log_me('Generating the possible values for eschema ' || v_eschema);
     POPULATE_POSSIBLE_VALUES(v_eschema);
     
-    LOG_UTILS.log_me('Generating the homomorphisms');
+    --LOG_UTILS.log_me('Generating the homomorphisms');
 
     open cur_homo;
     loop
@@ -176,16 +204,15 @@ begin
         -- for all the pairs of ambiguous variables there
         -- must hold an order constraint (<=)
         -- delete all the others
-        -- TODO: using the conditions
         
         if lac_optimize and XHS = 'LHS' then
-            LOG_UTILS.log_me('LAC optimization');
+            --LOG_UTILS.log_me('LAC optimization');
             declare
                 v_cnt integer := 0;
             begin
                 select count(distinct id) into v_cnt 
                 from homomorphisms where LHS_RHS = 'LHS';
-                LOG_UTILS.log_me('LHS homomorphisms before optimization: ' || v_cnt);
+                --LOG_UTILS.log_me('LHS homomorphisms before optimization: ' || v_cnt);
             end;
             
             delete from homomorphisms where id in (
@@ -207,7 +234,7 @@ begin
                     and a1.id <> a2.id -- but different specific atoms
                     and va11.variable = va21.variable -- same given variable
                     and va1.position = va2.position -- same position
-                    and h1.value > h2.value -- wrong relation between values
+                    and h1.value >= h2.value -- wrong relation between values
             );
         end if;
         
@@ -216,10 +243,20 @@ begin
         begin
             select count(distinct id) into v_cnt 
             from homomorphisms where LHS_RHS = 'LHS';
-            LOG_UTILS.log_me('Total number of homomorphisms: ' || v_cnt);
+            --LOG_UTILS.log_me('Total number of homomorphisms: ' || v_cnt);
         end;
        
 end ALL_POSSIBLE_HOMOMORPHISMS;
+
+function EXTENSION_TEST_STR(v_mapping_id1 in varchar2, v_mapping_id2 varchar2) return varchar2 as
+    begin
+        if EXTENSION_TEST(v_mapping_id1, v_mapping_id2) then
+            return 'Y';
+        else   
+            return 'N';
+        end if;
+end EXTENSION_TEST_STR;
+
 
 function EXTENSION_TEST(v_mapping_id1 in varchar2, v_mapping_id2 varchar2) return boolean as
 

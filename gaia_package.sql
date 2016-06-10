@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Wednesday-June-01-2016   
+--  File created - Friday-June-10-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package GAIA
@@ -13,6 +13,12 @@
 -- the corresponding e-schemas.
 -- It returns the identifiers of the two created eschemas.
 procedure GENERATE_ESCHEMAS(v_mapping_id in varchar2, v_database_source_schema varchar2, v_database_target_schema varchar2, v_eschema1 out integer, v_eschema2 out integer);
+
+-- It takes as input the id of a schema mapping,
+-- the name of an Oracle database schema to apply the mapping, the 'LHS','RHS' for the mapping and generates
+-- the corresponding e-schema.
+-- It returns the identifiers of the created e-schema.
+procedure GENERATE_ESCHEMAS_FROM_XHS (v_mapping_id in varchar2, v_database_schema varchar2, v_XHS varchar2, v_eschema out integer);
 
 -- It returns the canonical template mapping for a given pair of e-schemas
 procedure GET_CANONICAL_TEMPLATE_MAPPING (v_e_schema1 in varchar2, v_e_schema2 in varchar2,  v_mapping_id out varchar2);
@@ -46,6 +52,15 @@ procedure GENERATE_VARIANTS (v_mapping_set_id in varchar2, v_new_mapping_set out
 -- generate_variants(set M) --> set Q of the possible variants
 -- set M is the final output
 procedure encode(v_mapping_list in clob, v_source_schema in varchar2, v_target_schema in varchar2, v_mapping_set out varchar2, enable_second_level_variants boolean default true, lac_optimize boolean default false);
+
+-- We take as input a database schema and a conjunctive query defined over it.
+-- We encode the restriction of the schema that responds to that query.
+procedure encode_relational_query(v_query_string in clob, v_database_schema in varchar2, v_eschema out varchar2);
+
+-- It searches the transformations that are more suitable
+-- to transform a source, target (or both) database schema
+-- as constrained by a conjunctive query
+procedure search_transformation(v_query varchar2, v_database_schema varchar2, v_source_target_both varchar2);
 
 
 END GAIA;
