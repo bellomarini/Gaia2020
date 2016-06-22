@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Friday-June-10-2016   
+--  File created - Wednesday-June-22-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body TEMPLATE_MAPPINGS_UTILS
@@ -52,10 +52,9 @@ begin
 
 end POPULATE_POSSIBLE_VALUES;
 
-function mapping_specificity(v_mapping_id in varchar2, v_XHS in varchar2, v_eschema in varchar2) return number as
+function homo_count(v_mapping_id in varchar2, v_XHS in varchar2, v_eschema in varchar2) return number as
 
     v_cnt integer; -- the number of homomorphisms;
-    v_specificity number; -- the affinity between the mapping and the eschema
     v_lac boolean := true;
     
 begin
@@ -68,18 +67,10 @@ begin
     select count(distinct id) into v_cnt 
     from homomorphisms;
     
-    -- the affinity
-    -- is the inverse of the number of homomorphisms
-    -- 
-    if v_cnt = 0 then
-        v_specificity := 0;
-    else
-        v_specificity := 1/v_cnt;
-    end if;
+
+    return v_cnt;
     
-    return v_specificity;
-    
-end mapping_specificity;
+end homo_count;
 
 procedure ALL_POSSIBLE_HOMOMORPHISMS(v_mapping_id in varchar2, XHS in varchar2, v_chosen_eschema in varchar2 := null, lac_optimize boolean default false) as
     path varchar2(200);

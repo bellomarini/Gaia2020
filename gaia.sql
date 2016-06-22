@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Friday-June-10-2016   
+--  File created - Wednesday-June-22-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -1480,7 +1480,6 @@ procedure GENERATE_VARIANTS (v_mapping_set_id in varchar2, v_new_mapping_set out
         from mapping_sets
         where id = v_mapping_set_id;
         
-        
     -- calculate all the possible combinations of assignments
     -- at any level
     cursor cur_variants is
@@ -1759,18 +1758,46 @@ end encode_relational_query;
 procedure search_transformation(v_query varchar2, v_database_schema varchar2, v_source_target_both varchar2) as
     v_eschema_out varchar2(20);
     v_mapping_id varchar2(20);
-    v_specificity number;
+    v_l_homo_num number;
+    v_r_homo_num number;
     v_counter integer := 0;
     v_maps_cnt integer;
     
+    -- a random sample of laconic mappings
     cursor cur_search is
-    select id from mappings
-    where type in ('L','CP','CN','CH','CPV','CNV','CHV','LV','CV');
+    select id from mappings sample(45)
+    where type in ('L');
+    
+    v_mapping_description varchar2(400);
+    
+    -- selects the most similar profiles
+    -- and oredrs the mapping by specificity
+    cursor cur_result is
+    select * from (
+    select distinct
+        m.id,
+        m.description,
+        case when l.lhs_homo = 0 then 0 else 1/l.lhs_homo end as spec_l,
+        case when l.rhs_homo = 0 then 0 else 1/l.rhs_homo end as spec_r
+            from laconic_profile_r l join mappings m on (l.mapping = m.id)
+        where l.id in (
+             select id from (
+                select id, sum(similarity_l), sum(similarity_r)
+                from laconic_profile_r
+                group by id
+                order by sum(similarity_l) asc, sum(similarity_r) asc
+            ) where rownum=1
+        )
+    ) order by spec_l desc, spec_r desc;
+    
+    
+   
+
     
 BEGIN
 
-    select count(*) into v_maps_cnt from mappings
-    where type in ('L','CP','CN','CH','CPV','CNV','CHV','LV','CV');
+    select count(*) into v_maps_cnt from mappings sample(45)
+    where type in ('L');
 
     LOG_UTILS.log_me('SEARCH: encoding the relational query');
     -- we encode the input query that selects a portion
@@ -1778,10 +1805,93 @@ BEGIN
     GAIA.encode_relational_query(v_query, v_database_schema, v_eschema_out);
     LOG_UTILS.log_me('Start searching among ' || v_maps_cnt || ' mappings.');
     
-    delete from mapping_specificity;
+    
+    LOG_UTILS.log_me('SEARCH: populating search profiles');
+    delete from laconic_profile_r;
+    insert into laconic_profile_r(id, mapping, lhs_homo, rhs_homo, eschema_desc)
+    select id, mapping, lhs_homo, rhs_homo, eschema_desc from laconic_profile;
+    
+    -- we select some random laconic mappings
+    open cur_search;
+    loop
+    v_counter := v_counter + 1;
+    fetch cur_search into v_mapping_id;
+    exit when cur_search%notfound;
+    
+        -- we calculate the number of homomorphisms for the
+        -- selected mappings
+        LOG_UTILS.log_me('Analyzing mapping ' || v_mapping_id || ' (' || v_counter || '/' || v_maps_cnt || ')');
 
-    -- now I have to return the mappings that are suitable for the input
-    -- schema, ranked by their specificity.
+        if v_source_target_both = 'SOURCE' or v_source_target_both = 'BOTH' then
+            v_l_homo_num := TEMPLATE_MAPPINGS_UTILS.homo_count(v_mapping_id, 'LHS', v_eschema_out);
+        end if;
+        
+        if v_source_target_both = 'TARGET' or v_source_target_both = 'BOTH' then
+            v_l_homo_num := TEMPLATE_MAPPINGS_UTILS.homo_count(v_mapping_id, 'LHS', v_eschema_out);
+        end if;
+       
+
+        -- and update similarity measures for
+        -- those mappings
+        update laconic_profile_r
+                set similarity_l = abs(lhs_homo - v_l_homo_num),
+                    similarity_r = abs(rhs_homo - v_r_homo_num)
+        where mapping = v_mapping_id; 
+
+
+    -- we pick the most similar profile
+    end loop;
+    close cur_search;
+    
+    LOG_UTILS.log_me('Search completed');
+
+    LOG_UTILS.log_me('Selecting similar profile');
+
+    
+    open cur_result;
+    loop
+    fetch cur_result into v_mapping_id, v_mapping_description, v_l_homo_num, v_r_homo_num;
+    exit when cur_result%notfound;
+    dbms_output.put_line('+ id: ' || v_mapping_id);
+    dbms_output.put_line('  --- description: ' || v_mapping_description);
+    dbms_output.put_line('  --- l-rank: ' || v_l_homo_num);
+    dbms_output.put_line('  --- r-rank: ' || v_r_homo_num);
+    end loop;
+    close cur_result;
+    
+
+END;
+
+procedure profile_transformation(v_query varchar2, v_database_schema varchar2, v_source_target_both varchar2) as
+
+    -- all the laconic mappings, we calculate a laconic profile
+  cursor cur_search is
+    select id from mappings
+    where type in ('L');
+    
+    v_counter integer := 0;
+    v_mapping_id varchar2(60);
+    v_eschema_out varchar2(60);
+    v_maps_cnt integer;
+    v_l_homo integer;
+    v_r_homo integer;
+    
+    v_profile_id integer;
+
+
+begin
+
+    select count(*) into v_maps_cnt from mappings
+    where type in ('L');
+
+    LOG_UTILS.log_me('SEARCH: profiling the relational query');
+    -- we encode the input query that selects a portion
+    -- of the schema to search for
+    GAIA.encode_relational_query(v_query, v_database_schema, v_eschema_out);
+    LOG_UTILS.log_me('Start searching among ' || v_maps_cnt || ' mappings.');
+    
+    select seq_laconic_profile.nextval into v_profile_id from dual;
+
     open cur_search;
     loop
     v_counter := v_counter + 1;
@@ -1790,15 +1900,20 @@ BEGIN
         -- we calculate the specificity of the mapping for the eschema
         LOG_UTILS.log_me('Analyzing mapping ' || v_mapping_id || ' (' || v_counter || '/' || v_maps_cnt || ')');
 
-        v_specificity := TEMPLATE_MAPPINGS_UTILS.mapping_specificity(v_mapping_id, 'LHS', v_eschema_out);
+        v_l_homo := TEMPLATE_MAPPINGS_UTILS.homo_count(v_mapping_id, 'LHS', v_eschema_out);
+        v_r_homo := TEMPLATE_MAPPINGS_UTILS.homo_count(v_mapping_id, 'RHS', v_eschema_out);
+
+        
         -- we store the specificity of the mappings we have analyzed
-        insert into mapping_specificity (mapping, spec_lhs) values (v_mapping_id, v_specificity);
+        insert into laconic_profile (id, mapping, lhs_homo, rhs_homo, eschema_desc) values 
+        (v_profile_id, v_mapping_id, v_l_homo, v_r_homo, v_query);
     end loop;
     close cur_search;
     
-    LOG_UTILS.log_me('Search completed');
+    LOG_UTILS.log_me('Profiling completed');
 
-END;
+
+end profile_transformation;
 
 END GAIA;
 
