@@ -145,3 +145,16 @@ TODO
 
 * Attention: LAC mappings should have < and not <= (just correct the string,
 	the check is now ok)
+
+Index mappings with the following parameters:
+* L\_REL\_NUM : number of relations in the LHS
+* R\_REL\_NUM : number of relations in the RHS
+* EXIST\_NUM : number of existentially quantified variables
+* L\_JOIN\_NUM : number of joins in the LHS (i.e. number of unique pairs of atoms with at least one variable in common)
+* R\_JOIN\_NUM : number of joins in the RHS (i.e. number of unique atoms with at least one variable in common)
+* L\_CART\_NUM : number of cartesian products in the LHS (i.e. number of unique pairs of atoms without any variable in common)
+* R\_CART\_NUM : number of cartesian products in the RHS (i.e. number of unique pairs of atoms without any variable in common)
+* L\_JOIN\_FK\_NUM : number of joins along a FK in the LHS (i.e. number of unique pairs of atoms with such a join)
+* L\_CART\_FK\_NUM : number of joins aling a FK in the RHS (i.e. number of unique pairs of atoms with such a join)
+* R\_JOIN\_FK\_NUM : number of cartesian products along a FK in the LHS (i.e. number of unique pairs of atoms linked by a FK, without any variable in common)
+* R\_CART\_FK\_NUM : number of cartesian products along a FK in the RHS (i.e. number of unique pairs of atoms linked by a FK, without any variable in common)
