@@ -158,3 +158,9 @@ Index mappings with the following parameters:
 * L\_CART\_FK\_NUM : number of joins aling a FK in the RHS (i.e. number of unique pairs of atoms with such a join)
 * R\_JOIN\_FK\_NUM : number of cartesian products along a FK in the LHS (i.e. number of unique pairs of atoms linked by a FK, without any variable in common)
 * R\_CART\_FK\_NUM : number of cartesian products along a FK in the RHS (i.e. number of unique pairs of atoms linked by a FK, without any variable in common)
+
+|  parameter |  description |
+|------------|--------------|
+|            |              |
+|            |              | 
+|            |              |
