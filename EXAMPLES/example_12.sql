@@ -11,7 +11,7 @@ DECLARE
     -- Second-level variants
     V_ENABLE_SECOND_LEVEL_VARIANTS boolean := TRUE;
     -- LAC OPTIMIZATION
-    V_LAC_OPTIMIZE boolean := TRUE;
+    V_LAC_OPTIMIZE boolean := FALSE;
     
 BEGIN
     GAIA.encode(V_MAPPING_LIST,V_SOURCE_SCHEMA,V_TARGET_SCHEMA,v_mapping_set_out, V_ENABLE_SECOND_LEVEL_VARIANTS, V_LAC_OPTIMIZE);

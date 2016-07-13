@@ -7,7 +7,7 @@ DECLARE
     -- Oracle target schema
     V_TARGET_SCHEMA varchar2(20) := 'GAIA_INPUT';
     -- Semicolon-separated schema mappings of the transformation scenario
-    V_MAPPING_LIST varchar2(200) := 'BANKS(ID,V1,V2,V3,V4)->G1(ID,V1),G2(ID,V2),G3(ID,V3)';
+    V_MAPPING_LIST varchar2(200) := 'G1(i,x),G2(x,y)->G3(i,y)';
     -- Second-level variants
     V_ENABLE_SECOND_LEVEL_VARIANTS boolean := FALSE;
     -- LAC OPTIMIZATION
