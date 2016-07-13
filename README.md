@@ -159,18 +159,21 @@ Index mappings with the following parameters:
 * R\_JOIN\_FK\_NUM : number of cartesian products along a FK in the LHS (i.e. number of unique pairs of atoms linked by a FK, without any variable in common)
 * R\_CART\_FK\_NUM : number of cartesian products along a FK in the RHS (i.e. number of unique pairs of atoms linked by a FK, without any variable in common)
 
-|  parameter   	    |  description |
-|-------------------|--------------|
-| L\_REL\_NUM 	    | number of relations in the LHS |
+|  parameter   	    | description | similarity score |
+|-------------------|----------------------------------|----------------- |
+| L\_REL\_NUM 	    | number of relations in the LHS | 
 | R\_REL\_NUM       | number of relations in the RHS | 
 | EXIST\_NUM  	    | number of existentially quantified variables |
-| L\_JOIN\_NUM      | number of joins in the LHS |
-| R\_JOIN\_NUM      | number of joins in the RHS |
-| L\_CART\_NUM	    | number of cartesian products in the LHS |
-| R\_CART\_NUM	    | number of cartesian products in the RHS |
-| L\_JOIN\_FK\_NUM  | number of joins along a FK in the LHS |
-| L\_CART\_FK\_NUM  | number of cartesian products along a FK in the LHS |	
-| R\_JOIN\_FK\_NUM  | number of joins along a FK in the RHS |
-| R\_CART\_FK\_NUM  | number of cartesian products along a FK in the RHS |
+| L\_JOIN\_NUM      | number of joins in the LHS (i.e. number of unique pairs of atoms with at least one variable in common) |
+| R\_JOIN\_NUM      | number of joins in the RHS (i.e. number of unique pairs of atoms with at least one variable in common) |
+| L\_CART\_NUM	    | number of cartesian products in the LHS (i.e. number of unique pairs of atoms without any variable in common) |
+| R\_CART\_NUM	    | number of cartesian products in the RHS (i.e. number of unique pairs of atoms without any variable in common) |
+| L\_JOIN\_FK\_NUM  | number of joins along a FK in the LHS (i.e. number of unique pairs of atoms with such a join) |
+| L\_CART\_FK\_NUM  | number of cartesian products along a FK in the LHS (i.e. number of unique pairs of atoms linked by a FK, without any variable in common) |	
+| R\_JOIN\_FK\_NUM  | number of joins along a FK in the RHS (i.e. number of unique pairs of atoms with such a join)|
+| R\_CART\_FK\_NUM  | number of cartesian products along a FK in the RHS (i.e. number of unique pairs of atoms with such a join)|
 | L\_JOIN\_KEY\_NUM | number of joins along a KEY in the LHS |
 | R\_JOIN\_KEY\_NUM | number of joins along a KEY in the RHS |
+| VAR\_COPIED\_NUM  | number of distinct variables copied from the LHS to the RHS |
+| VAR\_JOINED | number of unique pairs of variables in distinct relations, without FKs in the LHS, copied to the same relation or into relations with a FK in the RHS |
+| VAR\_DISJOINT | unique number of unique pairs of variables in the same relation in the LHS, or in relations with FKs, copied to distinct relations in the RHS, without a FK |
