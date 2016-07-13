@@ -125,7 +125,15 @@ where id in (
 Structure of a file \<profile\_query\>.sql
 -----------------------------------
 
-This is the structure of an example file for profiling a conjunctive query or searching the best
+This is the structure of an example file for profiling a conjunctive query.
+
+```
+....
+```
+Structure of a file \<search\_query\>.sql
+-----------------------------------
+
+This is the structure of an example file for searching the best
 mappings for a transformation.
 
 ```
