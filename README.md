@@ -120,6 +120,7 @@ where id in (
   from mapping_sets
   where id = <final mapping set id>
 )
+```
 
 Structure of a file \<profile\_query\>.sql
 -----------------------------------
@@ -127,7 +128,9 @@ Structure of a file \<profile\_query\>.sql
 This is the structure of an example file for profiling a conjunctive query or searching the best
 mappings for a transformation.
 
+```
 ....
+```
 
 TODO
 ----
