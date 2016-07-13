@@ -82,25 +82,10 @@ Organization of the repository
   - EXAMPLES/ : contains the examples, in files \<example\>.sql
   - EXAMPLES/DDL : contains the DDL to create database source and target schemas
 
-TODO
-----
-
-* Attention: LAC mappings should have < and not <= (just correct the string,
-	the check is now ok)
-
-* Indexing
-  - index the mappings in the repository with <=s (Arenas)
-  - index the mappings in the repository with <=t (Arenas)
-
-* Search
-  - given a source e-schema, propose all the applicable template schema mappings
-  - given a target e-schema, propose all the applicable template schema mappings
-  - given a source and a target e-schema, propose all the applicable template schema mappings
-  
 Structure of a file \<example\>.sql
 -----------------------------------
 
-This is the structure of an example file for testing the encoding.
+This is the structure of an example file for encoding a transformation.
 
 ```
 -- DESCRIPTION OF THE TEST:
@@ -135,3 +120,17 @@ where id in (
   from mapping_sets
   where id = <final mapping set id>
 )
+
+Structure of a file \<profile\_query\>.sql
+-----------------------------------
+
+This is the structure of an example file for profiling a conjunctive query or searching the best
+mappings for a transformation.
+
+....
+
+TODO
+----
+
+* Attention: LAC mappings should have < and not <= (just correct the string,
+	the check is now ok)
