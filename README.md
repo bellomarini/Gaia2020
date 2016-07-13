@@ -176,4 +176,6 @@ Index mappings with the following parameters:
 | R\_JOIN\_KEY\_NUM | number of joins along a KEY in the RHS |
 | VAR\_COPIED\_NUM  | number of distinct variables copied from the LHS to the RHS |
 | VAR\_JOINED | number of unique pairs of variables in distinct relations, without FKs in the LHS, copied to the same relation or into relations with a FK in the RHS |
-| VAR\_DISJOINT | unique number of unique pairs of variables in the same relation in the LHS, or in relations with FKs, copied to distinct relations in the RHS, without a FK |
+| VAR\_DISJOINT | number of unique pairs of variables in the same relation in the LHS, or in relations with FKs, copied to distinct relations in the RHS, without a FK |
+| VAR\_NORMALIZED | number of unique pairs of variables in the same relation in the LHS, copied to distinct relations in the RHS with a FK |
+| VAR\_DENORMALIZED | number of unique pair of variables in distinct relations in the LHS with a FK, copied to the same relation in the RHS |
