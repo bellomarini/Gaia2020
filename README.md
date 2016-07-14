@@ -145,3 +145,29 @@ TODO
 
 * Attention: LAC mappings should have < and not <= (just correct the string,
 	the check is now ok)
+
+INDEX
+-----
+
+Mappings should be indexed with the following parameters:
+
+|  parameter   	    | description | similarity score |
+|-------------------|----------------------------------|----------------- |
+| L\_REL 	    | number of relations in the LHS | 
+| R\_REL       | number of relations in the RHS | 
+| EXIST  	    | number of existentially quantified variables |
+| L\_JOIN      | number of joins in the LHS (i.e. number of unique pairs of atoms with at least one variable in common) |
+| R\_JOIN      | number of joins in the RHS (i.e. number of unique pairs of atoms with at least one variable in common) |
+| L\_CART	    | number of cartesian products in the LHS (i.e. number of unique pairs of atoms without any variable in common) |
+| R\_CART	    | number of cartesian products in the RHS (i.e. number of unique pairs of atoms without any variable in common) |
+| L\_JOIN\_FK  | number of joins along a FK in the LHS (i.e. number of unique pairs of atoms with such a join) |
+| L\_CART\_FK  | number of cartesian products along a FK in the LHS (i.e. number of unique pairs of atoms linked by a FK, without any variable in common) |	
+| R\_JOIN\_FK  | number of joins along a FK in the RHS (i.e. number of unique pairs of atoms with such a join)|
+| R\_CART\_FK  | number of cartesian products along a FK in the RHS (i.e. number of unique pairs of atoms with such a join)|
+| L\_JOIN\_KEY | number of joins along a KEY in the LHS |
+| R\_JOIN\_KEY | number of joins along a KEY in the RHS |
+| VAR\_COPIED  | number of distinct variables copied from the LHS to the RHS |
+| VAR\_JOINED | number of unique pairs of variables in distinct relations, without FKs in the LHS, copied to the same relation or into relations with a FK in the RHS |
+| VAR\_DISJOINT | number of unique pairs of variables in the same relation in the LHS, or in relations with FKs, copied to distinct relations in the RHS, without a FK |
+| VAR\_NORMALIZED | number of unique pairs of variables in the same relation in the LHS, copied to distinct relations in the RHS with a FK |
+| VAR\_DENORMALIZED | number of unique pair of variables in distinct relations in the LHS with a FK, copied to the same relation in the RHS |
