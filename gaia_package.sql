@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Thursday-July-07-2016   
+--  File created - Thursday-July-14-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package GAIA
@@ -61,6 +61,10 @@ procedure encode_relational_query(v_query_string in clob, v_database_schema in v
 -- to transform a source, target (or both) database schema
 -- as constrained by a conjunctive query
 procedure search_transformation(v_query varchar2, v_database_schema varchar2, v_source_target_both varchar2);
+
+
+-- It searches a transformation using the index
+procedure search_transformation_index(v_query varchar2, v_database_schema varchar2);
 
 -- It calculates for a given transformation
 -- the number of homomorphisms towards all the mappings (LHS and RHS) and

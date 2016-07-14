@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Tuesday-May-24-2016   
+--  File created - Thursday-July-14-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body MAPPINGS_UTILS
@@ -9,8 +9,8 @@
 
 procedure PARSE_MAPPING(v_mapping_string in varchar2, v_mapping_id out varchar2) as
 
-atom_name varchar2(20) := 'dummy';
-param_list varchar2(20) := 'dummy';
+atom_name varchar2(90) := 'dummy';
+param_list varchar2(90) := 'dummy';
 var varchar2(20) := 'dummy';
 v_condition varchar2(20) := 'dummy';
 v_cond_pos integer := 1;

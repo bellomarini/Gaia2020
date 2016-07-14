@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Thursday-July-07-2016   
+--  File created - Thursday-July-14-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -229,7 +229,7 @@ BEGIN
         MAPPINGS_UTILS.UPDATE_DESCRIPTION(v_mapping_id);
         
         declare
-            v_description varchar2(600);
+            v_description varchar2(1000);
         begin
             select description into v_description
             from mappings
@@ -1755,9 +1755,102 @@ begin
         
 end encode_relational_query;
 
+
+procedure search_transformation_index(v_query varchar2, v_database_schema varchar2) as
+    v_eschema_out varchar2(30);
+    v_mapping_id varchar2(30);
+    v_out_mapping varchar2(30);
+    v_score number;
+    v_description varchar2(900);
+    
+    v_maps_cnt integer := 0;
+    v_outcome integer := 0;
+    v_l_homo_num integer := 0;
+
+    cursor cur_score is
+    select * from (
+    select A.mapping, A.score, description from (
+        select l2.mapping,
+         (abs(nvl(l1.l_rel,0) - nvl(l2.l_rel,0)) +
+         abs(nvl(l1.r_rel,0) - nvl(l2.r_rel,0)) +
+         abs(nvl(l1.exist,0) - nvl(l2.exist,0)) +
+         abs(nvl(l1.l_join,0) - nvl(l2.l_join,0)) +
+         abs(nvl(l1.r_join,0) - nvl(l2.r_join,0)) +
+         abs(nvl(l1.l_cart,0) - nvl(l2.r_cart,0)) +
+         abs(nvl(l1.l_join_fk,0) - nvl(l2.l_join_fk,0)) +
+         abs(nvl(l1.l_cart_fk,0) - nvl(l2.l_cart_fk,0)) +
+         abs(nvl(l1.r_join_fk,0) - nvl(l2.r_join_fk,0)) +
+         abs(nvl(l1.r_cart_fk,0) - nvl(l2.r_cart_fk,0)) +
+         abs(nvl(l1.l_join_key,0) - nvl(l2.l_join_key,0)) +
+         abs(nvl(l1.var_copied,0) - nvl(l2.var_copied,0)) +
+         abs(nvl(l1.var_joined,0) - nvl(l2.var_joined,0)) +
+         abs(nvl(l1.var_disjoint,0) - nvl(l2.var_disjoint,0)) +
+         abs(nvl(l1.var_normalized,0) - nvl(l2.var_normalized,0)) +
+         abs(nvl(l1.var_denormalized,0) - nvl(l2.var_denormalized,0))
+         ) as score
+        from laconic_index l1, laconic_index l2
+        where l2.mapping <> v_mapping_id
+        and l1.mapping = v_mapping_id
+    ) A, mappings m
+    where A.mapping = m.id
+    and m.type = 'L'
+    order by A.score asc) where rownum <= 5;
+    
+    begin
+    
+    select count(*) into v_maps_cnt from mappings
+    where type in ('L');
+
+    LOG_UTILS.log_me('SEARCH: encoding the relational query as a mapping');
+    -- we encode the input query that selects a portion
+    -- of the schema to search for
+
+    -- parse the single query as a LHS-only mapping
+        MAPPINGS_UTILS.PARSE_MAPPING(
+            V_MAPPING_STRING => v_query,
+            V_MAPPING_ID => V_MAPPING_ID
+        );
+        
+    LOG_UTILS.log_me('SEARCH: encoding the relational query');
+    -- we encode the input query that selects a portion
+    -- of the schema to search for
+    GAIA.encode_relational_query(v_query, v_database_schema, v_eschema_out);
+    
+    LOG_UTILS.log_me('Start searching among ' || v_maps_cnt || ' mappings.');
+    
+    v_outcome := MAPPINGS_INDEX.score_query(v_mapping_id);
+    
+    open cur_score;
+    loop
+        fetch cur_score into v_out_mapping, v_score, v_description;
+        exit when cur_score%notfound;
+        
+        v_l_homo_num := TEMPLATE_MAPPINGS_UTILS.homo_count(v_out_mapping, 'LHS', v_eschema_out);
+        -- only the mappins with homomorphisms
+        if v_l_homo_num > 0 then
+            dbms_output.put_line(' -- homomorphism score -- ' || 1/v_l_homo_num);
+            dbms_output.put_line('Mapping: ' || v_out_mapping);
+            dbms_output.put_line(' -- description --  ' || v_description);
+            dbms_output.put_line(' -- similarity score --  ' || v_score);
+        end if;
+
+        
+        LOG_UTILS.log_me('Analyzing mapping: ' || v_out_mapping);
+        
+        
+    end loop;
+    
+    close cur_score;
+    
+end search_transformation_index;
+
+    
+
+
+
 procedure search_transformation(v_query varchar2, v_database_schema varchar2, v_source_target_both varchar2) as
-    v_eschema_out varchar2(20);
-    v_mapping_id varchar2(20);
+    v_eschema_out varchar2(30);
+    v_mapping_id varchar2(30);
     v_l_homo_num number;
     v_r_homo_num number;
     v_counter integer := 0;
@@ -1765,13 +1858,13 @@ procedure search_transformation(v_query varchar2, v_database_schema varchar2, v_
     
     -- a random sample of laconic mappings
     cursor cur_search is
-    select id from mappings sample(45)
+    select id from mappings sample(30)
     where type in ('L');
     
-    v_mapping_description varchar2(400);
+    v_mapping_description varchar2(900);
     
     -- selects the most similar profiles
-    -- and oredrs the mapping by specificity
+    -- and orders the mapping by specificity
     cursor cur_result is
     select * from (
     select distinct
@@ -1796,7 +1889,7 @@ procedure search_transformation(v_query varchar2, v_database_schema varchar2, v_
     
 BEGIN
 
-    select count(*) into v_maps_cnt from mappings sample(45)
+    select count(*) into v_maps_cnt from mappings sample(30)
     where type in ('L');
 
     LOG_UTILS.log_me('SEARCH: encoding the relational query');

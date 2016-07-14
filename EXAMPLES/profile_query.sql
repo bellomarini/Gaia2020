@@ -7,6 +7,6 @@ DECLARE
         
         --TEMPLATE_MAPPINGS_UTILS.mapping_specificity('53249','LHS',v_eschema_out);
         --dbms_output.put_line(TEMPLATE_MAPPINGS_UTILS.mapping_specificity('53249','LHS',v_eschema_out));
-        --GAIA.search_transformation('BANK0(a,b,c,d,e,f,g)', 'BILANA', 'SOURCE');
-        GAIA.profile_transformation('G1(x,y),G2(y,z)', 'GAIA_INPUT', 'SOURCE');
+        GAIA.search_transformation('BANK0(a,b,c,d,e),BANK1(a,f,g)', 'BILANA', 'SOURCE');
+        --GAIA.profile_transformation('BANK1(x,y,z),BANK100(x,m,k,q)', 'BILANA', 'SOURCE');
     END;
