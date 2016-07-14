@@ -162,7 +162,7 @@ Structure of a file \<search\_query\>.sql
 ------------------------------------------
 
 This is the structure of an example file for searching the best
-mappings for a transformation.
+mappings for a transformation using the profiles.
 
 ```
 ....
@@ -171,8 +171,15 @@ mappings for a transformation.
 Structure of a file \<index\_search\_query\>.sql
 -------------------------------------------------
 
+This is the structure of an example file for searching the best mapping for a transformation
+using the index.
+
 ```
-....
+declare
+    begin
+        GAIA.search_transformation_index('BANK0(x,y,z,k,u),BANK1(x,a,b)', 'BILANA');    
+    end;
+    
 ```
 
 TODO
