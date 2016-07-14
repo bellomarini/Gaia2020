@@ -53,7 +53,8 @@ Some of the following functions adopt the concept of transformation. In GAIA, a 
 
   - GAIA.ENCODE\_RELATIONAL\_QUERY : from a database schema and a conjunctive query, we encode the restriction of the schema that is used by that query. 
   - GAIA.PROFILE\_TRANSFORMATION : from a database schema and a conjunctive query, we individuate the restriction of the schema that is used by the query. For each laconic schema mapping in the repository, for the LHS and for the RHS, we calculate the number of homomorphisms from that schema mapping to the restriction of the schema defined by the conjunctive query. We store the pair (homo\_LHS, homo\_RHS) as a profile for the conjunctive query. The idea is that the number of homomorphisms from a given portion of a schema to all the homomorphisms, profiles the portion of the schema.
-  - GAIA.SEARCH\_TRANSFORMATION : from a database schema and a conjunctive query denoting a part of it, we individuate all the laconic schema mappings that are best suited for that. In particular, we pick up a sample of the available schema mappings and calculate the number of homomorphisms from the LHS and the RHS to each of those mappings. We then individuate the profile that is most similar to the calculated sample profile. For the so individuated profile, we report all the schema mappings, ranked according to the number of homomorphisms. 
+  - GAIA.SEARCH\_TRANSFORMATION : from a database schema and a conjunctive query denoting a part of it, we individuate all the laconic schema mappings that are best suited for that. In particular, we pick up a sample of the available schema mappings and calculate the number of homomorphisms from the LHS and the RHS to each of those mappings. We then individuate the profile that is most similar to the calculated sample profile. For the so individuated profile, we report all the schema mappings, ranked according to the number of homomorphisms. The ones with less homomorphisms are assumed to be more suitable.
+  - GAIA.SEARCH\_TRANSFORMATION\_INDEX : from a database schema and a conjunctive query denotina a part of it, we individuate all the laconic schema mappings that are best suited for it. In particular, we pick up the available laconic mappings that are more similar to the portion of schema (source, target or both) involved in the transformation. The similarity is evaluated on the basis of the INDEX table described in the INDEX section. Among the top-k similar mappings, we calculate all the homomorphisms from each of them to the involved schema(s). We report all the schema mappings, ranked according to the number of homomorphisms. The ones with less homomorphisms are assumed to be more suitable.
 
 Types of mappings
 -----------------
@@ -71,6 +72,33 @@ These are the types of mappings we handle in the MAPPINGS table:
 - CHV : a template mapping generated as a second-level variant of a hybrid repair of a canonical mapping
 - LV : a template mapping generated as a second-level variant of a laconic mapping (if laconic enabled)
 - CV : a template mapping generated as a second-level variant of a canonical mapping (if it didn't need a repair)
+
+INDEX
+-----
+
+The following table describes the parameters used to evaluate similarity between
+mappings and schemas.
+
+|  parameter   	    | description | similarity score |
+|-------------------|----------------------------------|----------------- |
+| L\_REL 	    | number of relations in the LHS | 
+| R\_REL       | number of relations in the RHS | 
+| EXIST  	    | number of existentially quantified variables |
+| L\_JOIN      | number of joins in the LHS (i.e. number of unique pairs of atoms with at least one variable in common) |
+| R\_JOIN      | number of joins in the RHS (i.e. number of unique pairs of atoms with at least one variable in common) |
+| L\_CART	    | number of cartesian products in the LHS (i.e. number of unique pairs of atoms without any variable in common) |
+| R\_CART	    | number of cartesian products in the RHS (i.e. number of unique pairs of atoms without any variable in common) |
+| L\_JOIN\_FK  | number of joins along a FK in the LHS (i.e. number of unique pairs of atoms with such a join) |
+| L\_CART\_FK  | number of cartesian products along a FK in the LHS (i.e. number of unique pairs of atoms linked by a FK, without any variable in common) |	
+| R\_JOIN\_FK  | number of joins along a FK in the RHS (i.e. number of unique pairs of atoms with such a join)|
+| R\_CART\_FK  | number of cartesian products along a FK in the RHS (i.e. number of unique pairs of atoms with such a join)|
+| L\_JOIN\_KEY | number of joins along a KEY in the LHS |
+| R\_JOIN\_KEY | number of joins along a KEY in the RHS |
+| VAR\_COPIED  | number of distinct variables copied from the LHS to the RHS |
+| VAR\_JOINED | number of unique pairs of variables in distinct relations, without FKs in the LHS, copied to the same relation or into relations with a FK in the RHS |
+| VAR\_DISJOINT | number of unique pairs of variables in the same relation in the LHS, or in relations with FKs, copied to distinct relations in the RHS, without a FK |
+| VAR\_NORMALIZED | number of unique pairs of variables in the same relation in the LHS, copied to distinct relations in the RHS with a FK |
+| VAR\_DENORMALIZED | number of unique pair of variables in distinct relations in the LHS with a FK, copied to the same relation in the RHS |
 
 Organization of the repository
 -------------------------------
@@ -131,10 +159,17 @@ This is the structure of an example file for profiling a conjunctive query.
 ....
 ```
 Structure of a file \<search\_query\>.sql
------------------------------------
+------------------------------------------
 
 This is the structure of an example file for searching the best
 mappings for a transformation.
+
+```
+....
+```
+
+Structure of a file \<index\_search\_query\>.sql
+-------------------------------------------------
 
 ```
 ....
@@ -146,28 +181,4 @@ TODO
 * Attention: LAC mappings should have < and not <= (just correct the string,
 	the check is now ok)
 
-INDEX
------
 
-Mappings should be indexed with the following parameters:
-
-|  parameter   	    | description | similarity score |
-|-------------------|----------------------------------|----------------- |
-| L\_REL 	    | number of relations in the LHS | 
-| R\_REL       | number of relations in the RHS | 
-| EXIST  	    | number of existentially quantified variables |
-| L\_JOIN      | number of joins in the LHS (i.e. number of unique pairs of atoms with at least one variable in common) |
-| R\_JOIN      | number of joins in the RHS (i.e. number of unique pairs of atoms with at least one variable in common) |
-| L\_CART	    | number of cartesian products in the LHS (i.e. number of unique pairs of atoms without any variable in common) |
-| R\_CART	    | number of cartesian products in the RHS (i.e. number of unique pairs of atoms without any variable in common) |
-| L\_JOIN\_FK  | number of joins along a FK in the LHS (i.e. number of unique pairs of atoms with such a join) |
-| L\_CART\_FK  | number of cartesian products along a FK in the LHS (i.e. number of unique pairs of atoms linked by a FK, without any variable in common) |	
-| R\_JOIN\_FK  | number of joins along a FK in the RHS (i.e. number of unique pairs of atoms with such a join)|
-| R\_CART\_FK  | number of cartesian products along a FK in the RHS (i.e. number of unique pairs of atoms with such a join)|
-| L\_JOIN\_KEY | number of joins along a KEY in the LHS |
-| R\_JOIN\_KEY | number of joins along a KEY in the RHS |
-| VAR\_COPIED  | number of distinct variables copied from the LHS to the RHS |
-| VAR\_JOINED | number of unique pairs of variables in distinct relations, without FKs in the LHS, copied to the same relation or into relations with a FK in the RHS |
-| VAR\_DISJOINT | number of unique pairs of variables in the same relation in the LHS, or in relations with FKs, copied to distinct relations in the RHS, without a FK |
-| VAR\_NORMALIZED | number of unique pairs of variables in the same relation in the LHS, copied to distinct relations in the RHS with a FK |
-| VAR\_DENORMALIZED | number of unique pair of variables in distinct relations in the LHS with a FK, copied to the same relation in the RHS |
