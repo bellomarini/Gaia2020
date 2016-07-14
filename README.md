@@ -156,8 +156,11 @@ Structure of a file \<profile\_query\>.sql
 This is the structure of an example file for profiling a conjunctive query.
 
 ```
-....
+    BEGIN
+        GAIA.profile_transformation('BANK1(x,y,z),BANK100(x,m,k,q)', 'BILANA', 'SOURCE');
+    END;
 ```
+
 Structure of a file \<search\_query\>.sql
 ------------------------------------------
 
@@ -165,7 +168,9 @@ This is the structure of an example file for searching the best
 mappings for a transformation using the profiles.
 
 ```
-....
+    BEGIN
+        GAIA.search_transformation('BANK1(x,y,z)', 'BILANA', 'SOURCE');
+    END;
 ```
 
 Structure of a file \<index\_search\_query\>.sql
