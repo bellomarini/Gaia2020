@@ -54,7 +54,8 @@ Some of the following functions adopt the concept of transformation. In GAIA, a 
   - GAIA.ENCODE\_RELATIONAL\_QUERY : from a database schema and a conjunctive query, we encode the restriction of the schema that is used by that query. 
   - GAIA.PROFILE\_TRANSFORMATION : from a database schema and a conjunctive query, we individuate the restriction of the schema that is used by the query. For each laconic schema mapping in the repository, for the LHS and for the RHS, we calculate the number of homomorphisms from that schema mapping to the restriction of the schema defined by the conjunctive query. We store the pair (homo\_LHS, homo\_RHS) as a profile for the conjunctive query. The idea is that the number of homomorphisms from a given portion of a schema to all the homomorphisms, profiles the portion of the schema.
   - GAIA.SEARCH\_TRANSFORMATION : from a database schema and a conjunctive query denoting a part of it, we individuate all the laconic schema mappings that are best suited for that. In particular, we pick up a sample of the available schema mappings and calculate the number of homomorphisms from the LHS and the RHS to each of those mappings. We then individuate the profile that is most similar to the calculated sample profile. For the so individuated profile, we report all the schema mappings, ranked according to the number of homomorphisms. The ones with less homomorphisms are assumed to be more suitable.
-  - GAIA.SEARCH\_TRANSFORMATION\_INDEX : from a database schema and a conjunctive query denotina a part of it, we individuate all the laconic schema mappings that are best suited for it. In particular, we pick up the available laconic mappings that are more similar to the portion of schema (source, target or both) involved in the transformation. The similarity is evaluated on the basis of the INDEX table described in the INDEX section. Among the top-k similar mappings, we calculate all the homomorphisms from each of them to the involved schema(s). We report all the schema mappings, ranked according to the number of homomorphisms. The ones with less homomorphisms are assumed to be more suitable.
+  - GAIA.SEARCH\_TRANSFORMATION\_INDEX : from a source and target databases, represented by a conjunctive query on an existing database schema, we individuate all the  schema mappings (laconic and not) that are best suited for it. 
+  In particular, we define a number of structural features that can be calculated both on template mappings and on input source and target schemas. For the template mappings in the repository, we calculate the values of these features and store them in an index. For the input source and target schema, we calculate these features on line. They include: number of relations, number of attributes, number of joins ... (shown in the table below). Given an input source and target schema, we proceed to choose the best mappings by evaluating a score in two steps: a. we compute a structural similarity; b. we compute a measure of the shared constants. For the structural similarity: 1. we compute a [0,1] normalized distance between the various features, and a score 1-d, out of this distance; 2. we scale these scores between parametric ranges [a,b], defined for each feature, by applying a Feature Scaling formula (this allows to tune the contribution of the single feature [0.5, 0.5] neutral, [0.5,>0,5] only positive, [<0.5,0.5] only negative, [<0.5,>0.5] positive and negative... with all the intermediate ranges). For weighing the contribution to the score of the shared constants, we  adopt Jaccard index on relation and attribute names and apply Feature Scaling on this index as well. All the scores (structural and shared constants) are combined with a technique derived from Naive Bayes Classifiers (Garham formula http://www.paulgraham.com/naivebayes.html). Finally, template mappings having a score greather than a given threshold are returned, ranked by the score itself.
 
 Types of mappings
 -----------------
@@ -76,7 +77,7 @@ These are the types of mappings we handle in the MAPPINGS table:
 INDEX
 -----
 
-The following table describes the parameters used to evaluate similarity between
+The following table describes the structural features, used to evaluate similarity between
 mappings and schemas.
 
 |  parameter   	    | description | similarity score |
@@ -186,30 +187,6 @@ declare
     end;
     
 ```
-
-Example of search output:
-
-```
-Mapping: 53852
- -- description --  RELATION(var430455),ATTRIBUTE(var430457,var430455),ATTRIBUTE(var430458,var430455),ATTRIBUTE(var430459,var430455),ATTRIBUTE(var430460,var430455),KEY(var430461,var430455),var430457<=var430458,var430458<=var430459,var430460<=var430457->RELATION(var430456),ATTRIBUTE(var430457,var430456),KEY(var430457,var430456)
- -- similarity score --  4
- -- homomorphism score -- .2
-Mapping: 53752
- -- description --  RELATION(var430035),ATTRIBUTE(var430037,var430035),ATTRIBUTE(var430038,var430035),ATTRIBUTE(var430039,var430035),ATTRIBUTE(var430040,var430035),KEY(var430041,var430035),var430037<=var430038,var430038<=var430039,var430040<=var430037->RELATION(var430036),ATTRIBUTE(var430037,var430036),KEY(var430038,var430036)
- -- similarity score --  5
- -- homomorphism score -- .2
-Mapping: 53855
- -- description --  RELATION(var430474),ATTRIBUTE(var430476,var430474),ATTRIBUTE(var430477,var430474),ATTRIBUTE(var430478,var430474),ATTRIBUTE(var430479,var430474),KEY(var430480,var430474),var430476<=var430477,var430477<=var430479,var430478<=var430476->RELATION(var430475),ATTRIBUTE(var430476,var430475),KEY(var430477,var430475)
- -- similarity score --  5
- -- homomorphism score -- .2
-Mapping: 53849
- -- description --  RELATION(var430436),ATTRIBUTE(var430438,var430436),ATTRIBUTE(var430439,var430436),ATTRIBUTE(var430440,var430436),ATTRIBUTE(var430441,var430436),KEY(var430442,var430436),var430438<=var430440,var430440<=var430439,var430441<=var430438->RELATION(var430437),ATTRIBUTE(var430441,var430437),KEY(var430438,var430437)
- -- similarity score --  5
- -- homomorphism score -- .125
-Mapping: 53756
- -- description --  RELATION(var430053),ATTRIBUTE(var430055,var430053),ATTRIBUTE(var430055,var430053),ATTRIBUTE(var430055,var430053),ATTRIBUTE(var430055,var430053),KEY(var430056,var430053)->RELATION(var430054),ATTRIBUTE(var430055,var430054),KEY(var430056,var430054)
- -- similarity score --  5
- ```
 
 TODO
 ----
