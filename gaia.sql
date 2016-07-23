@@ -1,5 +1,5 @@
 --------------------------------------------------------
---  File created - Thursday-July-14-2016   
+--  File created - Saturday-July-23-2016   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Package Body GAIA
@@ -1740,7 +1740,7 @@ begin
 end encode;
 
 
-procedure encode_relational_query(v_query_string in clob, v_database_schema in varchar2, v_eschema out varchar2) as
+procedure encode_relational_query(v_query_string in clob, v_database_schema in varchar2, v_eschema out varchar2, v_out_mapping out varchar2) as
 
     v_mapping_id varchar2(150);
 begin
@@ -1749,6 +1749,8 @@ begin
             V_MAPPING_STRING => v_query_string,
             V_MAPPING_ID => V_MAPPING_ID
         );
+        
+        v_out_mapping := v_mapping_id;
         
         -- and generate the e-schema for it
         GAIA.GENERATE_ESCHEMAS_FROM_XHS (v_mapping_id, v_database_schema, 'LHS', v_eschema);
@@ -1763,81 +1765,63 @@ procedure search_transformation_index(v_query varchar2, v_database_schema varcha
     v_score number;
     v_description varchar2(900);
     
+    v_score_threshold number := 0.65;
+    
     v_maps_cnt integer := 0;
     v_outcome integer := 0;
     v_l_homo_num integer := 0;
 
     cursor cur_score is
     select * from (
-    select A.mapping, A.score, description from (
-        select l2.mapping,
-         (abs(nvl(l1.l_rel,0) - nvl(l2.l_rel,0)) +
-         abs(nvl(l1.r_rel,0) - nvl(l2.r_rel,0)) +
-         abs(nvl(l1.exist,0) - nvl(l2.exist,0)) +
-         abs(nvl(l1.l_join,0) - nvl(l2.l_join,0)) +
-         abs(nvl(l1.r_join,0) - nvl(l2.r_join,0)) +
-         abs(nvl(l1.l_cart,0) - nvl(l2.r_cart,0)) +
-         abs(nvl(l1.l_join_fk,0) - nvl(l2.l_join_fk,0)) +
-         abs(nvl(l1.l_cart_fk,0) - nvl(l2.l_cart_fk,0)) +
-         abs(nvl(l1.r_join_fk,0) - nvl(l2.r_join_fk,0)) +
-         abs(nvl(l1.r_cart_fk,0) - nvl(l2.r_cart_fk,0)) +
-         abs(nvl(l1.l_join_key,0) - nvl(l2.l_join_key,0)) +
-         abs(nvl(l1.var_copied,0) - nvl(l2.var_copied,0)) +
-         abs(nvl(l1.var_joined,0) - nvl(l2.var_joined,0)) +
-         abs(nvl(l1.var_disjoint,0) - nvl(l2.var_disjoint,0)) +
-         abs(nvl(l1.var_normalized,0) - nvl(l2.var_normalized,0)) +
-         abs(nvl(l1.var_denormalized,0) - nvl(l2.var_denormalized,0))
-         ) as score
-        from laconic_index l1, laconic_index l2
-        where l2.mapping <> v_mapping_id
-        and l1.mapping = v_mapping_id
-    ) A, mappings m
-    where A.mapping = m.id
-    and m.type = 'L'
-    order by A.score asc) where rownum <= 5;
-    
+    select 
+        m1.id as id, 
+        SCH_MAP_DIST.distance(v_mapping_id, v_eschema_out, m1.id) as score, 
+        m1.description 
+        from mappings m1
+        where m1.type <> 'S'
+    ) where score >= v_score_threshold 
+    order by score desc;
+        
     begin
-    
-    select count(*) into v_maps_cnt from mappings
-    where type in ('L');
+
+    -- we search among all the templates    
+    select count(*) into v_maps_cnt from mappings where type <> 'S';
 
     LOG_UTILS.log_me('SEARCH: encoding the relational query as a mapping');
     -- we encode the input query that selects a portion
     -- of the schema to search for
-
-    -- parse the single query as a LHS-only mapping
-        MAPPINGS_UTILS.PARSE_MAPPING(
-            V_MAPPING_STRING => v_query,
-            V_MAPPING_ID => V_MAPPING_ID
-        );
         
     LOG_UTILS.log_me('SEARCH: encoding the relational query');
     -- we encode the input query that selects a portion
     -- of the schema to search for
-    GAIA.encode_relational_query(v_query, v_database_schema, v_eschema_out);
+    GAIA.encode_relational_query(v_query, v_database_schema, v_eschema_out, V_MAPPING_ID);
     
     LOG_UTILS.log_me('Start searching among ' || v_maps_cnt || ' mappings.');
     
+    -- we score the query we want to search for
+    LOG_UTILS.log_me('Scoring structure of transformation ' || v_mapping_id);
     v_outcome := MAPPINGS_INDEX.score_query(v_mapping_id);
+    
+    -- in the following, the cursor selects the mappings that
+    -- according to the index are more likely to be appropriate
+    -- for what has been searched.
+    
+    -- then we see what are the most appropriate in terms of homomorphisms.
     
     open cur_score;
     loop
         fetch cur_score into v_out_mapping, v_score, v_description;
         exit when cur_score%notfound;
         
-        v_l_homo_num := TEMPLATE_MAPPINGS_UTILS.homo_count(v_out_mapping, 'LHS', v_eschema_out);
+        --v_l_homo_num := TEMPLATE_MAPPINGS_UTILS.homo_count(v_out_mapping, 'LHS', v_eschema_out);
         -- only the mappins with homomorphisms
-        if v_l_homo_num > 0 then
-            dbms_output.put_line(' -- homomorphism score -- ' || 1/v_l_homo_num);
+        --if v_l_homo_num > 0 then
+        --    dbms_output.put_line(' -- homomorphism score -- ' || 1/v_l_homo_num);
             dbms_output.put_line('Mapping: ' || v_out_mapping);
             dbms_output.put_line(' -- description --  ' || v_description);
-            dbms_output.put_line(' -- similarity score --  ' || v_score);
-        end if;
+            dbms_output.put_line(' -- score --  ' || v_score);
+       -- end if;
 
-        
-        LOG_UTILS.log_me('Analyzing mapping: ' || v_out_mapping);
-        
-        
     end loop;
     
     close cur_score;
@@ -1895,7 +1879,7 @@ BEGIN
     LOG_UTILS.log_me('SEARCH: encoding the relational query');
     -- we encode the input query that selects a portion
     -- of the schema to search for
-    GAIA.encode_relational_query(v_query, v_database_schema, v_eschema_out);
+    GAIA.encode_relational_query(v_query, v_database_schema, v_eschema_out, v_mapping_id);
     LOG_UTILS.log_me('Start searching among ' || v_maps_cnt || ' mappings.');
     
     
@@ -1980,7 +1964,7 @@ begin
     LOG_UTILS.log_me('SEARCH: profiling the relational query');
     -- we encode the input query that selects a portion
     -- of the schema to search for
-    GAIA.encode_relational_query(v_query, v_database_schema, v_eschema_out);
+    GAIA.encode_relational_query(v_query, v_database_schema, v_eschema_out, v_mapping_id);
     LOG_UTILS.log_me('Start searching among ' || v_maps_cnt || ' mappings.');
     
     select seq_laconic_profile.nextval into v_profile_id from dual;
